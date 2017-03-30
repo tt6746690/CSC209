@@ -12,7 +12,7 @@
 
 #include "ftree.h"
 
-void handleclient(int server_fd, int client_fd, fd_set *listen_fds_ptr);
+void handleclient(int server_fd, int client_fd, fd_set *listen_fds_ptr, fd_set *all_fds_ptr);
 
 /*
  * Takes the file tree rooted at source, and copies transfers it to host
@@ -26,7 +26,7 @@ int rcopy_client(char *source, char *host, unsigned short port){
   // Initilalze kaddr_in for server
   server.sin_family = PF_INET;
   server.sin_port = htons(port);
-  //printf("PORT = %d\n", PORT);
+  printf("PORT = %d\n", PORT);
 
   struct hostent *hp = gethostbyname(host);
   if ( hp == NULL ) {
@@ -85,7 +85,10 @@ void rcopy_server(unsigned short port){
   server.sin_port = htons(PORT);
   server.sin_addr.s_addr = INADDR_ANY;
   memset(&server.sin_zero, 0, 8);
-
+  
+  printf("Listening on %d\n", PORT);	
+	
+	
   // Bind the selected port to the socket.
   if (bind(sock_fd, (struct sockaddr *)&server, sizeof(server)) < 0) {
       perror("server: bind");
@@ -122,6 +125,7 @@ void rcopy_server(unsigned short port){
 
       // Is it the original socket? Create a new connection ...
       if (FD_ISSET(sock_fd, &listen_fds)) {
+      	 printf("Calling accept\n");
           int client_fd = accept(sock_fd, NULL, NULL);
           if (client_fd < 0) {
               perror("server: accept");
@@ -142,20 +146,23 @@ void rcopy_server(unsigned short port){
       //TODO: Loop over the fds and read from the ready ones
       for(int i = 0; i <= max_fd; i++) {
             if (FD_ISSET(i, &listen_fds)) {
-                handleclient(sock_fd, i, &listen_fds);
+                if (i != sock_fd)
+                	handleclient(sock_fd, i, &listen_fds, &all_fds);
 
             }
       }
   }
 }
 
-void handleclient(int server_fd, int client_fd, fd_set *listen_fds_ptr){
+void handleclient(int server_fd, int client_fd, fd_set *listen_fds_ptr, fd_set *all_fds_ptr){
   char message[MAXDATA + 1];
   message[0] = '\0';
   read(client_fd, message, sizeof(message));
+  printf("SERVER RECEIVED: %s\n", message);
   write(client_fd, message, sizeof(message));
 
   close(client_fd);
   FD_CLR(client_fd, listen_fds_ptr);
+  FD_CLR(client_fd, all_fds_ptr);
 
 }
