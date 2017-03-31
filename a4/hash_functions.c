@@ -31,3 +31,12 @@ int check_hash(const char *hash1, const char *hash2) {
     }
     return 0;
 }
+
+void show_hash(char *hash){
+  printf("Hash is: ");
+  for (int i = 0; i < BLOCK_SIZE; i++){
+    printf("%c", hash[i]);
+  }
+  printf("\n");
+
+}
