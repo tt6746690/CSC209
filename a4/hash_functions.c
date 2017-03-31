@@ -1,6 +1,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include "hash.h"
+
 #define BLOCK_SIZE 8
 
 char *hash(char *hash_val, FILE *f) {

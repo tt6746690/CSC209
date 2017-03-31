@@ -10,8 +10,9 @@
 #include <netinet/in.h>
 #include <sys/socket.h>
 #include <dirent.h>
+#include <stdio.h>
 
-
+#include "hash.h"
 #include "ftree.h"
 
 int handleclient(int server_fd, int client_fd, fd_set *listen_fds_ptr, fd_set *all_fds_ptr);
@@ -57,7 +58,7 @@ int rcopy_client(char *source, char *host, unsigned short port){
     perror("lstat");
     exit(1);
   }
-
+  // If a directory
   if ((file.st_mode & S_IFMT) == S_IFDIR){
     printf("%s\n", source);
     DIR *dirp = opendir(source);
@@ -77,17 +78,55 @@ int rcopy_client(char *source, char *host, unsigned short port){
         strncat(new_src, dp->d_name, strlen(dp->d_name));
         new_src[new_src_size - 1] = '\0';
         printf("Will send %s\n", new_src);
-        if(write(sock_fd, new_src, MAXDATA) == -1) {
+
+        FILE *sub_file_f = fopen(new_src,"r");
+        if (sub_file_f == NULL){
+          perror("fopen");
+          exit(1);
+        }
+
+        //TODO: replace with fields from dirent?
+        struct stat sub_file;
+        if (lstat(new_src, &sub_file) == -1){
+          perror("lstat");
+          exit(1);
+        }
+        char file_hash[BLOCKSIZE];
+        hash(file_hash, sub_file_f);
+        int type;
+        // Writes in this order: type, path, mode, hash, file size
+        if (sub_file.st_mode & S_IFMT == S_IFDIR)
+          type = REGDIR;
+        else
+          type = REGFILE;
+        if(write(sock_fd, &type, sizeof(int)) == -1) {
       	    perror("write");
       	    exit(1);
       	}
-        char file_b[MAXDATA];
+        if(write(sock_fd, new_src, MAXPATH) == -1) {
+      	    perror("write");
+      	    exit(1);
+      	}
+        if(write(sock_fd, &sub_file.st_mode, sizeof(mode_t)) == -1) {
+      	    perror("write");
+      	    exit(1);
+      	}
+        if(write(sock_fd, file_hash, BLOCKSIZE) == -1) {
+      	    perror("write");
+      	    exit(1);
+      	}
+        if(write(sock_fd, &sub_file.st_size, sizeof(size_t)) == -1) {
+      	    perror("write");
+      	    exit(1);
+      	}
+
+        /*char file_b[MAXDATA];
         if(read(sock_fd, file_b, MAXDATA) <= 0) {
       	    perror("read");
       	    exit(1);
       	}
 
-        printf("SERVER ECHOED: %s\n", file_b);
+        printf("SERVER ECHOED: %s\n", file_b);*/
 
       }
       //dp = readdir(dirp);
@@ -219,15 +258,41 @@ void rcopy_server(unsigned short port){
 }
 
 int handleclient(int server_fd, int client_fd, fd_set *listen_fds_ptr, fd_set *all_fds_ptr){
-  char message[MAXDATA + 1];
-  //message[0] = '\0';
-  int num_read = read(client_fd, message, MAXDATA);
+  //char message[MAXDATA + 1];
+  // About to receive data in order: type, path, mode, hash, size
+
+  struct request new_request;
+
+  int num_read = read(client_fd, &(new_request.type), sizeof(int));
   if (num_read == 0){
     return -1;
   }
-  message[num_read] = '\0';
-  printf("SERVER RECEIVED a %d sized message: %s\n", num_read, message);
-  write(client_fd, message, MAXDATA);
+
+  num_read = read(client_fd, new_request.path, MAXPATH);
+  if (num_read == 0){
+    return -1;
+  }
+
+  num_read = read(client_fd, &(new_request.mode), sizeof(mode_t));
+  if (num_read == 0){
+    return -1;
+  }
+
+  num_read = read(client_fd, new_request.hash, BLOCKSIZE);
+  if (num_read == 0){
+    return -1;
+  }
+
+  num_read = read(client_fd, &(new_request.size), sizeof(size_t));
+  if (num_read == 0){
+    return -1;
+  }
+  printf("%s\n", "Successful information transfer");
+  //message[num_read] = '\0';
+
+
+  //printf("SERVER RECEIVED a %d sized message: %s\n", num_read, message);
+  //write(client_fd, message, MAXDATA);
 
   //close(client_fd);
   FD_CLR(client_fd, listen_fds_ptr);

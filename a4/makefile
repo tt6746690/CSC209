@@ -5,11 +5,11 @@ DEPENDENCIES = hash.h ftree.h
 
 all: rcopy_client rcopy_server
 
-rcopy_client: rcopy_client.o ftree.o
+rcopy_client: rcopy_client.o ftree.o hash_functions.o
 	gcc ${CFLAGS} -o $@ $^
 
-rcopy_server: rcopy_server.o ftree.o
-	gcc ${CFLAGS} -o $@ rcopy_server.o ftree.o
+rcopy_server: rcopy_server.o ftree.o hash_functions.o
+	gcc ${CFLAGS} -o $@ rcopy_server.o ftree.o hash_functions.o
 
 %.o: %.c ${DEPENDENCIES}
 	gcc ${CFLAGS} -c $<
