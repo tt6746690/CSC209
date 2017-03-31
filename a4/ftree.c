@@ -14,7 +14,7 @@
 
 #include "ftree.h"
 
-void handleclient(int server_fd, int client_fd, fd_set *listen_fds_ptr, fd_set *all_fds_ptr);
+int handleclient(int server_fd, int client_fd, fd_set *listen_fds_ptr, fd_set *all_fds_ptr);
 
 /*
  * Takes the file tree rooted at source, and copies transfers it to host
@@ -200,12 +200,15 @@ void rcopy_server(unsigned short port){
 
       //TODO: Loop over the fds and read from the ready ones
       for(int i = 0; i <= max_fd; i++) {
-            printf("ON iter %d\n", i);
+            //printf("ON iter %d\n", i);
             if (FD_ISSET(i, &listen_fds)) {
                 if (i != sock_fd){
                   //printf("\tHANDLE %d\n", i);
-                  handleclient(sock_fd, i, &listen_fds, &all_fds);
-                  FD_CLR(i, &listen_fds);
+                  if (handleclient(sock_fd, i, &listen_fds, &all_fds) == -1){
+                    close(i);
+                    FD_CLR(i, &all_fds);
+                  }
+                  //FD_CLR(i, &listen_fds);
                 }
 
             }
@@ -215,10 +218,13 @@ void rcopy_server(unsigned short port){
   times--;
 }
 
-void handleclient(int server_fd, int client_fd, fd_set *listen_fds_ptr, fd_set *all_fds_ptr){
+int handleclient(int server_fd, int client_fd, fd_set *listen_fds_ptr, fd_set *all_fds_ptr){
   char message[MAXDATA + 1];
   //message[0] = '\0';
   int num_read = read(client_fd, message, MAXDATA);
+  if (num_read == 0){
+    return -1;
+  }
   message[num_read] = '\0';
   printf("SERVER RECEIVED a %d sized message: %s\n", num_read, message);
   write(client_fd, message, MAXDATA);
@@ -226,5 +232,5 @@ void handleclient(int server_fd, int client_fd, fd_set *listen_fds_ptr, fd_set *
   //close(client_fd);
   FD_CLR(client_fd, listen_fds_ptr);
   //FD_CLR(client_fd, all_fds_ptr);
-
+  return client_fd;
 }
