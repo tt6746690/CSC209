@@ -18,6 +18,7 @@ int main(int argc, char **argv) {
         return 1;
     }
 
+    // rcopy_client src_dir host 
     if (rcopy_client(argv[1], argv[2], PORT) != 0) {
         printf("Errors encountered during copy\n");
         return 1;

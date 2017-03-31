@@ -6,7 +6,7 @@
 
 #define MAXPATH 128
 #define MAXDATA 256
-#define MAXCONNECTIONS 128
+#define MAXCONNECTIONS 5
 
 // Input states
 #define AWAITING_TYPE 0
