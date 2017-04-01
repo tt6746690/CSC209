@@ -1,6 +1,41 @@
 #include <stdio.h>
 #include "h_func.h"
 
+
+/* Create a new socket that connects to host 
+ * Waiting for a successful connection
+ * Returns sock_fd and exits should error arises
+ */
+int connect_sock(char *host, unsigned short port){
+
+    int sock_fd;
+    sock_fd = socket(AF_INET, SOCK_STREAM, 0);
+    if (sock_fd < 0) {
+        perror("client: socket");
+        exit(1);
+    }
+
+    // Set the IP and port of the server to connect to.
+    struct sockaddr_in server;
+    server.sin_family = PF_INET;
+    server.sin_port = htons(port);
+
+    struct hostent *hp = gethostbyname(host);
+    if ( hp == NULL ) {
+        fprintf(stderr, "client: %s unknown host\n", host);
+        exit(1);
+    }
+    server.sin_addr = *((struct in_addr *)hp->h_addr);
+
+    // Connect to server
+    if (connect(sock_fd, (struct sockaddr *)&server, sizeof(server)) == -1) {
+        perror("client:connect"); close(sock_fd);
+        exit(1);
+    }
+
+    return sock_fd;
+}
+
 /*
  * Construct client request for file/dir at path
  */ 

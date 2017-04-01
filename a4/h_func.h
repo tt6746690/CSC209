@@ -7,11 +7,20 @@
 #include <stdlib.h>
 #include <sys/stat.h>
 
+#include <netdb.h>
+#include <sys/socket.h>
+
 #include "hash.h"       // hash()
 #include "ftree.h"      // request stuct 
 
 
 /* Client */
+
+/* Create a new socket that connects to host 
+ * Waiting for a successful connection
+ * Returns sock_fd and exits should error arises
+ */
+int connect_sock(char *host, unsigned short port);
 
 // Construct client request for file/dir at path
 void make_req(char *path, struct request *client_req);

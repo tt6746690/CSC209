@@ -24,7 +24,6 @@
  * Takes the file tree rooted at source, and copies transfers it to host
  */
 int rcopy_client(char *source, char *host, unsigned short port){
-    static int depth = 0;
 
     struct stat file_buf;
     if (lstat(source, &file_buf)){
@@ -32,38 +31,13 @@ int rcopy_client(char *source, char *host, unsigned short port){
         exit(1);
     }
 
+    int sock_fd;
+    sock_fd = connect_sock(host, port);
+
     struct request client_req;
     make_req(source, &client_req);
-    
-    // Create clients socket.
-    int sock_fd;
-    sock_fd = socket(AF_INET, SOCK_STREAM, 0);
-    if (sock_fd < 0) {
-        perror("client: socket");
-        exit(1);
-    }
-
-    // Set the IP and port of the server to connect to.
-    struct sockaddr_in server;
-    server.sin_family = PF_INET;
-    server.sin_port = htons(port);
-    //printf("PORT = %d\n", PORT);
-
-    struct hostent *hp = gethostbyname(host);
-    if ( hp == NULL ) {
-        fprintf(stderr, "rcopy_client: %s unknown host\n", host);
-        exit(1);
-    }
-    server.sin_addr = *((struct in_addr *)hp->h_addr);
-
-    // Connect to server
-    if (connect(sock_fd, (struct sockaddr *)&server, sizeof(server)) == -1) {
-        perror("client:connect"); close(sock_fd);
-        exit(1);
-    }
-
-    // Writes in this order: type, path, mode, hash, file size
     send_req(sock_fd, &client_req);
+
 
     int res_type;
     int num_read = read(sock_fd, &res_type, sizeof(int));
@@ -76,20 +50,9 @@ int rcopy_client(char *source, char *host, unsigned short port){
         int result = fork();
         if (result > 0){ // Child
           int sock_fd_child;
-          sock_fd_child = socket(AF_INET, SOCK_STREAM, 0);
-          // Set the IP and port of the server to connect to.
-          struct sockaddr_in server_child;
-          server_child.sin_family = PF_INET;
-          server_child.sin_port = htons(port);
-          //printf("PORT = %d\n", PORT);
 
-          server_child.sin_addr = *((struct in_addr *)hp->h_addr);
+          sock_fd_child = connect_sock(host, port);
 
-          // Connect to server
-          if (connect(sock_fd_child, (struct sockaddr *)&server_child, sizeof(server_child)) == -1) {
-              perror("client:connect"); close(sock_fd);
-              exit(1);
-          }
           // Send same request, with different type.
           client_req.type = TRANSFILE;
           send_req(sock_fd_child, &client_req);
