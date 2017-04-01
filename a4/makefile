@@ -18,5 +18,10 @@ rcopy_server: rcopy_server.o ftree.o hash_functions.o h_func.o
 clean:
 	rm *.o 
 
-rmbox:
+server:
 	chmod 777 sandbox && rm -r sandbox
+	clear
+	./rcopy_server .
+
+client:
+	./rcopy_client adir localhost

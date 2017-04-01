@@ -33,13 +33,14 @@ int connect_sock(char *host, unsigned short port){
         exit(1);
     }
 
+    printf("Client: sock_fd = [%d] connecting to server\n", sock_fd);
     return sock_fd;
 }
-
-/*
- * Construct client request for file/dir at path
- */ 
-void make_req(char *path, struct request *req){
+/* Construct client request for file/dir at path
+ * request is modified to accomodate changes 
+ * exits process on error 
+ */
+void make_req(const char *path, struct request *req){
 
     struct stat file_buf;
     if (lstat(path, &file_buf)){
@@ -67,6 +68,12 @@ void make_req(char *path, struct request *req){
 
 /*
  * Sends request struct to sock_fd over 5 read calls
+ * In order of 
+ * -- type 
+ * -- path 
+ * -- mode 
+ * -- hash 
+ * -- size
  */
 void send_req(int sock_fd, struct request *req){
 
@@ -90,13 +97,101 @@ void send_req(int sock_fd, struct request *req){
         perror("client:write");
         exit(1);
     }
-
-      /*printf("1. Type: %d at %p\n", req->type, &(req->type));
-      printf("path: %s at %p\n", req->path, &(req->path));
-      printf("mode: %d at %p\n", req->mode, &(req->mode));
-      printf("hash: %s at %p\n", req->hash, &(req->hash));
-      printf("size: %d at %p\n\n", req->size, &(req->size));*/
 }
+
+
+/*
+ * Traverses filepath rooted at source with sock_fd
+ * Then for each file or directory 
+ * -- makes and sends request struct 
+ * -- waits for response from server
+ * ---- OK: continue to next file 
+ * ---- SENDFILE: 
+ * ------ forks new process, main process continues to next file, child:
+ * ------ initiate new connection with server w/e request.type = TRANSFILE
+ * ------ makes and sends request struct  
+ * ------ transmit data from file 
+ * ------ waits for OK, close socket and exits, otherwise handles error 
+ * ----ERROR: print appropriate msg includes file name then exit(1) 
+ */
+void traverse(const char *source, int sock_fd, char *host, unsigned short port){
+
+    // make & send request for source 
+    struct request client_req;
+    make_req(source, &client_req);
+    send_req(sock_fd, &client_req);
+
+    printf("Client sock=[%d] request: "
+            "type=[%d], path=[%s] \n", 
+            sock_fd, 
+            client_req.type, client_req.path);
+    
+    // wait for response from server
+    int res;
+    int num_read = read(sock_fd, &res, sizeof(int));    //TODO: error check
+    printf("Server response: [%d]\n", res);
+
+    if (res == SENDFILE){
+        int result = fork();
+        if (result == 0){                // Child
+
+          int child_sock_fd;
+          child_sock_fd = connect_sock(host, port);
+
+          // Send same request, with TRANSFILE type instead 
+          client_req.type = TRANSFILE;
+          send_req(child_sock_fd, &client_req);
+
+          // TODO: then send in file without expecting a message 
+          // then wait for OK message  
+
+          exit(1);
+        } else if (result < 0){
+          perror("fork");
+          exit(1);
+        }
+
+    } else if(res == ERROR){
+        fprintf(stderr, "client: sock [%d] at [%s] receives "
+                "ERROR from server\n", sock_fd, source);
+        exit(1);
+    }
+
+
+    // tree traversal 
+    struct stat file_buf;
+    if (lstat(source, &file_buf)){
+        perror("client:lstat");
+        exit(1);
+    }
+
+    // recursively call traverse() if source is a directory
+    if (S_ISDIR(file_buf.st_mode)){              
+        DIR *dirp; 
+        struct dirent *dp;
+
+        if ((dirp = opendir(source)) == NULL){
+            perror("opendir");
+            exit(1);
+        }
+
+        while ((dp = readdir(dirp)) != NULL){     // traverse dirp
+            if ((dp->d_name)[0] != '.'){          // avoid dot files
+
+                // Compute "source/filename"
+                char src_path[MAXPATH];
+                strncpy(src_path, source, sizeof(src_path) - strlen(source) - 1);
+                strncat(src_path, "/", sizeof(src_path) - strlen("/") - 1);
+                strncat(src_path, dp->d_name, sizeof(src_path) - strlen(dp->d_name) - 1);
+
+                traverse(src_path, sock_fd, host, port);
+            }
+        }
+    } 
+
+    return;
+}
+
 
 /*
  * Reads request struct from client socket 

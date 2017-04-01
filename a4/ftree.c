@@ -19,86 +19,16 @@
 
 
 
-
 /*
  * Takes the file tree rooted at source, and copies transfers it to host
  */
 int rcopy_client(char *source, char *host, unsigned short port){
 
-    struct stat file_buf;
-    if (lstat(source, &file_buf)){
-        perror("lstat");
-        exit(1);
-    }
-
+    // main socket for tree traversal 
     int sock_fd;
     sock_fd = connect_sock(host, port);
 
-    struct request client_req;
-    make_req(source, &client_req);
-    send_req(sock_fd, &client_req);
-
-
-    int res_type;
-    int num_read = read(sock_fd, &res_type, sizeof(int));
-    //TODO: error check
-
-    printf("Server response for %s : %d\n", client_req.path, res_type);
-
-    if (res_type == SENDFILE){
-        printf("\tClient needs to send %s\n", client_req.path);
-        int result = fork();
-        if (result > 0){ // Child
-          int sock_fd_child;
-
-          sock_fd_child = connect_sock(host, port);
-
-          // Send same request, with different type.
-          client_req.type = TRANSFILE;
-          send_req(sock_fd_child, &client_req);
-
-          // TODO: then send in file without expecting a message 
-          // then wait for OK message  
-          exit(1);
-        } else if (result < 0){
-          perror("fork");
-          exit(1);
-        }
-    }
-
-    if (S_ISDIR(file_buf.st_mode)){               // A dir
-        DIR *dirp = opendir(source);
-        struct dirent *dp;
-        if (dirp == NULL){
-            perror("opendir");
-            exit(1);
-        }
-
-        while ((dp = readdir(dirp)) != NULL){
-            if ((dp->d_name)[0] != '.'){          // avoid dot files
-
-                // Compute "source/filename"
-                int new_src_size = strlen(source) + sizeof('/') + strlen(dp->d_name) + 1;
-                char new_src[new_src_size];
-                strncpy(new_src, source, strlen(source) + 1);
-                strncat(new_src, "/", 1);
-                strncat(new_src, dp->d_name, strlen(dp->d_name));
-                new_src[new_src_size - 1] = '\0';
-
-                rcopy_client(new_src, host, port);
-
-            }
-        }
-
-
-    } else if(S_ISREG(file_buf.st_mode)){             // is file
-
-
-    }
-
-    if(close(sock_fd) == -1) {
-        perror("close");
-    }
+    traverse(source, sock_fd, host, port);
 
     return -1;
 }
