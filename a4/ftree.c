@@ -30,8 +30,30 @@ int copy_file();
  * Takes the file tree rooted at source, and copies transfers it to host
  */
 int rcopy_client(char *source, char *host, unsigned short port){
+    static int depth = 0;
+    struct request client_req;
+    struct stat file_buf;
+    if (lstat(source, &file_buf)){
+        perror("lstat");
+        exit(1);
+    }
+    strncpy(client_req.path, source, strlen(source) + 1);
+    // Compute file hash
+    FILE *f = fopen(client_req.path,"r");
+    if (f == NULL){
+        perror("fopen");
+        exit(1);
+    }
+    // Populate client_req
+    hash(client_req.hash, f);
+    client_req.mode = file_buf.st_mode;
+    client_req.size = file_buf.st_size;
 
-    char buf[MAXDATA + 1];
+    if (S_ISDIR(file_buf.st_mode)){
+        client_req.type = REGDIR;
+    } else{
+        client_req.type = REGFILE;
+    }
 
     // Create clients socket.
     int sock_fd;
@@ -45,7 +67,7 @@ int rcopy_client(char *source, char *host, unsigned short port){
     struct sockaddr_in server;
     server.sin_family = PF_INET;
     server.sin_port = htons(port);
-    printf("PORT = %d\n", PORT);
+    //printf("PORT = %d\n", PORT);
 
     struct hostent *hp = gethostbyname(host);
     if ( hp == NULL ) {
@@ -60,11 +82,19 @@ int rcopy_client(char *source, char *host, unsigned short port){
         exit(1);
     }
 
-    //TODO: Make a loop over all files in the directory
-    struct stat file_buf;
-    if (lstat(source, &file_buf)){
-        perror("lstat");
-        exit(1);
+    // Writes in this order: type, path, mode, hash, file size
+    send_req(sock_fd, &client_req);
+
+    int res_type;
+    int num_read = read(sock_fd, &res_type, sizeof(int));
+    //TODO: error check
+
+    printf("Server response for %s : %d\n", client_req.path, res_type);
+
+    if (res_type == SENDFILE){
+        printf("\tClient needs to send %s\n", client_req.path);
+        client_req.type = TRANSFILE;
+        send_req(sock_fd, &client_req);
     }
 
     if (S_ISDIR(file_buf.st_mode)){               // A dir
@@ -77,54 +107,16 @@ int rcopy_client(char *source, char *host, unsigned short port){
 
         while ((dp = readdir(dirp)) != NULL){
             if ((dp->d_name)[0] != '.'){          // avoid dot files
-                struct request client_req;
 
                 // Compute "source/filename"
                 int new_src_size = strlen(source) + sizeof('/') + strlen(dp->d_name) + 1;
-                strncpy(client_req.path, source, strlen(source) + 1);
-                strncat(client_req.path, "/", 1);
-                strncat(client_req.path, dp->d_name, strlen(dp->d_name));
-                client_req.path[new_src_size - 1] = '\0';
+                char new_src[new_src_size];
+                strncpy(new_src, source, strlen(source) + 1);
+                strncat(new_src, "/", 1);
+                strncat(new_src, dp->d_name, strlen(dp->d_name));
+                new_src[new_src_size - 1] = '\0';
 
-                // Compute file hash
-                FILE *f = fopen(client_req.path,"r");
-                if (f == NULL){
-                    perror("fopen");
-                    exit(1);
-                }
-
-                struct stat f_buf;
-                if (lstat(client_req.path, &f_buf) == -1){
-                    perror("lstat");
-                    exit(1);
-                }
-
-                // Populate client_req
-                hash(client_req.hash, f);
-                client_req.mode = f_buf.st_mode;
-                client_req.size = f_buf.st_size;
-
-                if (S_ISDIR(f_buf.st_mode)){
-                    client_req.type = REGDIR;
-                } else{
-                    client_req.type = REGFILE;
-                }
-
-
-                // Writes in this order: type, path, mode, hash, file size
-                send_req(sock_fd, &client_req);
-
-                int res_type;
-                int num_read = read(sock_fd, &res_type, sizeof(int));
-                //TODO: error check
-
-                printf("Server response for %s : %d\n", client_req.path, res_type);
-
-                if (res_type == SENDFILE){
-                    printf("\tClient needs to send %s\n", client_req.path);
-                    client_req.type = TRANSFILE;
-                    send_req(sock_fd, &client_req);
-                }
+                rcopy_client(new_src, host, port);
 
             }
         }
@@ -134,16 +126,6 @@ int rcopy_client(char *source, char *host, unsigned short port){
 
 
     }
-
-    /*if(write(sock_fd, source, MAXDATA) == -1) {
-      perror("write");
-      exit(1);
-      }
-      if(read(sock_fd, buf, MAXDATA) <= 0) {
-      perror("read");
-      exit(1);
-      }
-      printf("SERVER ECHOED: %s\n", buf);*/
 
     if(close(sock_fd) == -1) {
         perror("close");
@@ -289,11 +271,11 @@ void send_req(int sock_fd, struct request *req){
         exit(1);
     }
 
-      printf("1. Type: %d at %p\n", req->type, &(req->type));
+      /*printf("1. Type: %d at %p\n", req->type, &(req->type));
       printf("path: %s at %p\n", req->path, &(req->path));
       printf("mode: %d at %p\n", req->mode, &(req->mode));
       printf("hash: %s at %p\n", req->hash, &(req->hash));
-      printf("size: %d at %p\n\n", req->size, &(req->size));
+      printf("size: %d at %p\n\n", req->size, &(req->size));*/
 }
 
 
@@ -419,7 +401,6 @@ int file_compare(int client_fd, struct request *req){
         response = SENDFILE;
     } else{
         response = OK;
-
     }
     write(client_fd, &response, sizeof(int));
     return 0;
