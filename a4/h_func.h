@@ -62,13 +62,30 @@ void traverse(const char *source, int sock_fd, char *host, unsigned short port);
  * SERVER
  *********/
 
-// linked list for tracking mult read for sending request struct 
+/* 
+ * linked list for tracking mult read for sending request struct 
+ *
+ * current_state is one of
+ * -- AWAITING_TYPE 0
+ * -- AWAITING_PATH 1
+ * -- AWAITING_SIZE 2
+ * -- AWAITING_PERM 3
+ * -- AWAITING_HASH 4
+ * -- AWAITING_DATA 5
+ */
 struct client {
     int fd;
     int current_state;
     struct request client_req;
     struct client *next;
 };
+
+/*
+ * Allocates memory for a new struct client 
+ * at end of linked list with given fd 
+ * Returns pointer to the newly created element 
+ */
+struct client *linkedlist_insert(struct client *head, int fd);
 
 /*
  * Creates server socket 

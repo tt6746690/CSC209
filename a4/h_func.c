@@ -135,16 +135,13 @@ void traverse(const char *source, int sock_fd, char *host, unsigned short port){
 
             int child_sock_fd;
             child_sock_fd = client_sock(host, port);
-
-            // Send same request, with TRANSFILE type instead 
             client_req.type = TRANSFILE;
-
+            send_req(child_sock_fd, &client_req);
+            
             printf("Client sock=[%d] request: "
                     "type=[%d], path=[%s] \t TRANSFILE\n", 
                     child_sock_fd, 
                     client_req.type, client_req.path);
-
-            send_req(child_sock_fd, &client_req);
 
             // TODO: then send in file without expecting a message 
             // then wait for OK message  
@@ -242,6 +239,35 @@ int server_sock(unsigned short port){
     }
 
     return sock_fd;
+}
+
+/*
+ * Allocates memory for a new struct client 
+ * at end of linked list with given fd 
+ * Returns pointer to the newly created element 
+ */
+struct client *linkedlist_insert(struct client *head, int fd){
+
+    /* end is the last element in linklist head */
+    struct client *end;
+    end = head;
+
+    while(end->next != NULL){
+        end = end->next;
+    }
+
+    /* allocates memory for a new client struct 
+     * and insert till end of linked list */ 
+    struct client *new_client;
+    if((new_client = malloc(sizeof(struct client))) == NULL) {
+        perror("server:malloc");
+        exit(1);
+    }
+
+    new_client->fd = fd;
+    end->next = new_client;
+    
+    return new_client;
 }
 
 /*
