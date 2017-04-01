@@ -247,10 +247,8 @@ void rcopy_server(unsigned short port){
             if (FD_ISSET(i, &listen_fds) && i != sock_fd) {
                 //struct request client_req;
                 //struct client cl;
-                printf("FD %d is set\n", i);
-                for (struct client *p = head; p != NULL; p++){
+                for (struct client *p = head; p != NULL; p = p->next){
                     if (p->fd == i){
-                        printf("HANDLING %d\n", i);
                         if (handleclient(sock_fd, i, p) == -1){
                             close(i);
                             FD_CLR(i, &all_fds);
@@ -303,19 +301,13 @@ void send_req(int sock_fd, struct request *req){
  * Reads the 5 pieces of information from the client.
  */
 int handleclient(int server_fd, int client_fd, struct client *ct){
-    printf(">>>\n");
-    //struct request *client_req = &(ct->client_req);
-    printf("FFFFFDDDD ISSSS %d\n", ct->fd);
-    printf("%d\n", ct->client_req.type);
-    //struct request client_req = ct->client_req;
+    struct request *client_req = &(ct->client_req);
     int num_read;
-    printf("WHERE");
+
     // About to receive data in order: type, path, mode, hash, size
-    /*
     // STEP 1: receive type of request from the server
-    if (ct.current_state == AWAITING_TYPE){
-    printf("DOES");
-      num_read = read(client_fd, &(client_req.type), sizeof(int));
+    if (ct->current_state == AWAITING_TYPE){
+      num_read = read(client_fd, &(client_req->type), sizeof(int));
       if (num_read == 0){
           return -1;
       }
@@ -323,8 +315,7 @@ int handleclient(int server_fd, int client_fd, struct client *ct){
 
     // STEP 2: receive the path of the file
     } else if (ct->current_state == AWAITING_PATH){
-      printf("THIS");
-      num_read = read(client_fd, client_req.path, MAXPATH);
+      num_read = read(client_fd, client_req->path, MAXPATH);
       if (num_read == 0){
           return -1;
       }
@@ -332,7 +323,6 @@ int handleclient(int server_fd, int client_fd, struct client *ct){
 
     // STEP 3: Mode
     } else if (ct->current_state == AWAITING_PERM){
-      printf("GO");
       num_read = read(client_fd, &(client_req->mode), sizeof(mode_t));
       if (num_read == 0){
           return -1;
@@ -341,7 +331,6 @@ int handleclient(int server_fd, int client_fd, struct client *ct){
 
     // STEP 4: Hash
     } else if (ct->current_state == AWAITING_HASH){
-      printf("WRONG");
       num_read = read(client_fd, client_req->hash, BLOCKSIZE);
       if (num_read == 0){
           return -1;
@@ -350,14 +339,13 @@ int handleclient(int server_fd, int client_fd, struct client *ct){
 
     // Step 5: SIZE
     } else if (ct->current_state == AWAITING_SIZE){
-      printf("GUYS");
       num_read = read(client_fd, &(client_req->size), sizeof(size_t));
       if (num_read == 0){
           return -1;
-      }*/
+      }
       // Done reading all information for the request. Need to decide what to
       //  do next.
-      /*if (client_req->type == REGFILE){
+      if (client_req->type == REGFILE){
           printf("3. Type: %d at %p\n", client_req->type, &(client_req->type));
           printf("path: %s at %p\n", client_req->path, &(client_req->path));
           printf("mode: %d at %p\n", client_req->mode, &(client_req->mode));
@@ -377,18 +365,14 @@ int handleclient(int server_fd, int client_fd, struct client *ct){
           printf("mode: %d at %p\n", client_req.mode, &(client_req.mode));
           printf("hash: %s at %p\n", client_req.hash, &(client_req.hash));
           printf("size: %d at %p\n\n", client_req.size, &(client_req.size));*/
-          /*ct->current_state = AWAITING_DATA;
-          copy_file();*/
-      //}
+          ct->current_state = AWAITING_DATA;
+          copy_file();
+      }
 
-    /*} else if (ct->current_state == AWAITING_DATA){
-
-
+    } else if (ct->current_state == AWAITING_DATA){
 
 
-
-    }*/
-    printf("WHERE");
+    }
     //printf("%s\n", "Successful information transfer");
 
     /*printf("2. Type: %d at %p\n", client_req->type, &(client_req->type));
