@@ -93,8 +93,31 @@ int rcopy_client(char *source, char *host, unsigned short port){
 
     if (res_type == SENDFILE){
         printf("\tClient needs to send %s\n", client_req.path);
-        client_req.type = TRANSFILE;
-        send_req(sock_fd, &client_req);
+        int result = fork();
+        if (result > 0){ // Child
+          int sock_fd_child;
+          sock_fd_child = socket(AF_INET, SOCK_STREAM, 0);
+          // Set the IP and port of the server to connect to.
+          struct sockaddr_in server_child;
+          server_child.sin_family = PF_INET;
+          server_child.sin_port = htons(port);
+          //printf("PORT = %d\n", PORT);
+
+          server_child.sin_addr = *((struct in_addr *)hp->h_addr);
+
+          // Connect to server
+          if (connect(sock_fd_child, (struct sockaddr *)&server_child, sizeof(server_child)) == -1) {
+              perror("client:connect"); close(sock_fd);
+              exit(1);
+          }
+          // Send same request, with different type.
+          client_req.type = TRANSFILE;
+          send_req(sock_fd_child, &client_req);
+          exit(1);
+        } else if (result < 0){
+          perror("fork");
+          exit(1);
+        }
     }
 
     if (S_ISDIR(file_buf.st_mode)){               // A dir
@@ -328,18 +351,18 @@ int handleclient(int server_fd, int client_fd, struct client *ct){
       // Done reading all information for the request. Need to decide what to
       //  do next.
       if (client_req->type == REGFILE){
-          printf("3. Type: %d at %p\n", client_req->type, &(client_req->type));
+          /*printf("3. Type: %d at %p\n", client_req->type, &(client_req->type));
           printf("path: %s at %p\n", client_req->path, &(client_req->path));
           printf("mode: %d at %p\n", client_req->mode, &(client_req->mode));
           printf("hash: %s at %p\n", client_req->hash, &(client_req->hash));
-          printf("size: %d at %p\n\n", client_req->size, &(client_req->size));
+          printf("size: %d at %p\n\n", client_req->size, &(client_req->size));*/
           file_compare(client_fd, client_req);
       } else if (client_req->type == REGDIR){
-          printf("3. Type: %d at %p\n", client_req->type, &(client_req->type));
+          /*printf("3. Type: %d at %p\n", client_req->type, &(client_req->type));
           printf("path: %s at %p\n", client_req->path, &(client_req->path));
           printf("mode: %d at %p\n", client_req->mode, &(client_req->mode));
           printf("hash: %s at %p\n", client_req->hash, &(client_req->hash));
-          printf("size: %d at %p\n\n", client_req->size, &(client_req->size));
+          printf("size: %d at %p\n\n", client_req->size, &(client_req->size));*/
           file_compare(client_fd, client_req);
       } else {  // client_req->type == TRANSFILE
           /*printf("3. Type: %d at %p\n", client_req.type, &(client_req.type));
