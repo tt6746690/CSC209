@@ -1,18 +1,22 @@
 PORT=52945
 CFLAGS = -DPORT=$(PORT) -g -Wall -std=gnu99
-DEPENDENCIES = hash.h ftree.h
+HEADERS = hash.h ftree.h h_func.h
 
 
 all: rcopy_client rcopy_server
 
-rcopy_client: rcopy_client.o ftree.o hash_functions.o
+rcopy_client: rcopy_client.o ftree.o hash_functions.o h_func.o
 	gcc ${CFLAGS} -o $@ $^
 
-rcopy_server: rcopy_server.o ftree.o hash_functions.o
-	gcc ${CFLAGS} -o $@ rcopy_server.o ftree.o hash_functions.o
+rcopy_server: rcopy_server.o ftree.o hash_functions.o h_func.o
+	gcc ${CFLAGS} -o $@ $^
 
-%.o: %.c ${DEPENDENCIES}
+
+%.o: %.c ${HEADERS}
 	gcc ${CFLAGS} -c $<
 
 clean:
-	rm *.o
+	rm *.o 
+
+rmbox:
+	chmod 777 sandbox && rm -r sandbox
