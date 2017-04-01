@@ -37,6 +37,10 @@ struct request {
     int size;
 };
 
+
+/*
+ * Takes the file tree rooted at source, and copies transfers it to host
+ */
 int rcopy_client(char *source, char *host, unsigned short port);
 void rcopy_server(unsigned short port);
 

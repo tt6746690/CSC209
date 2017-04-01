@@ -14,14 +14,15 @@
 #include "hash.h"       // hash()
 #include "ftree.h"      // request stuct 
 
-
-/* Client */
+/*********
+ * CLIENT
+ *********/
 
 /* Create a new socket that connects to host 
  * Waiting for a successful connection
  * Returns sock_fd and exits should error arises
  */
-int connect_sock(char *host, unsigned short port);
+int client_sock(char *host, unsigned short port);
 
 /* Construct client request for file/dir at path
  * request is modified to accomodate changes 
@@ -41,7 +42,7 @@ void make_req(const char *path, struct request *client_req);
 void send_req(int sock_fd, struct request *req);
 
 /*
- * Traverses filepath rooted at source with sock_fd
+ * Recursively traverses filepath rooted at source with sock_fd
  * Then for each file or directory 
  * -- makes and sends request struct 
  * -- waits for response from server
@@ -57,7 +58,9 @@ void send_req(int sock_fd, struct request *req);
 void traverse(const char *source, int sock_fd, char *host, unsigned short port);
 
 
-/* Server */
+/*********
+ * SERVER
+ *********/
 
 // linked list for tracking mult read for sending request struct 
 struct client {
@@ -67,6 +70,12 @@ struct client {
     struct client *next;
 };
 
+/*
+ * Creates server socket 
+ * binds to PORT and starts litening to 
+ * connection from INADDR_ANY 
+ */
+int server_sock(unsigned short port);
 
 // Reads request struct from client socket 
 int handle_cli(int server_fd, int client_fd, struct client *client_req);
