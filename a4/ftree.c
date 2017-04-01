@@ -15,7 +15,14 @@
 #include "hash.h"
 #include "ftree.h"
 
-int handleclient(int server_fd, int client_fd, struct request *client_req);
+struct client {
+    int fd;
+    int current_state;
+    struct request client_req;
+    struct client *next;
+};
+
+int handleclient(int server_fd, int client_fd, struct client *client_req);
 void send_req(int sock_fd, struct request *re);
 int file_compare(int client_fd, struct request *req);
 int copy_file();
@@ -69,7 +76,7 @@ int rcopy_client(char *source, char *host, unsigned short port){
         }
 
         while ((dp = readdir(dirp)) != NULL){
-            if ((dp->d_name)[0] != '.'){          // avoid dot files 
+            if ((dp->d_name)[0] != '.'){          // avoid dot files
                 struct request client_req;
 
                 // Compute "source/filename"
@@ -194,10 +201,9 @@ void rcopy_server(unsigned short port){
     FD_ZERO(&all_fds);
     FD_SET(sock_fd, &all_fds);
 
-    //int num_connections = 0;
-    //struct request current_requests[MAXCONNECTIONS];
+    struct client *head = NULL;
     while (1) {
-        // select updates the fd_set it receives, 
+        // select updates the fd_set it receives,
         // so we always use a copy and retain the original.
         listen_fds = all_fds;
 
@@ -221,43 +227,38 @@ void rcopy_server(unsigned short port){
                     max_fd = client_fd;
                 }
                 FD_SET(client_fd, &all_fds);
+                struct client *temp = head;
+                head = (struct client *)malloc(sizeof(struct client));
+                if (head == NULL){
+                  perror("malloc");
+                  exit(1);
+                }
+                head->fd = client_fd;
+                head->current_state = AWAITING_TYPE;
+                head->next = temp;
+                (head->client_req).type = REGFILE; // TODO: JUST a test delete later
                 printf("Accepted connection %d\n", client_fd);
             }
         }
 
         // loop through fds
         for(int i = 0; i <= max_fd; i++) {
-            // handle available sockets other than server sock_fd 
+            // handle available sockets other than server sock_fd
             if (FD_ISSET(i, &listen_fds) && i != sock_fd) {
-                struct request client_req;
-                if (handleclient(sock_fd, i, &client_req) == -1){
-                    close(i);
-                    FD_CLR(i, &all_fds);
-                } else {
-                    if (client_req.type == REGFILE){
-                        printf("3. Type: %d at %p\n", client_req.type, &(client_req.type));
-                        printf("path: %s at %p\n", client_req.path, &(client_req.path));
-                        printf("mode: %d at %p\n", client_req.mode, &(client_req.mode));
-                        printf("hash: %s at %p\n", client_req.hash, &(client_req.hash));
-                        printf("size: %d at %p\n\n", client_req.size, &(client_req.size));
-                        file_compare(i, &client_req);
-                    } else if (client_req.type == REGDIR){
-                        printf("3. Type: %d at %p\n", client_req.type, &(client_req.type));
-                        printf("path: %s at %p\n", client_req.path, &(client_req.path));
-                        printf("mode: %d at %p\n", client_req.mode, &(client_req.mode));
-                        printf("hash: %s at %p\n", client_req.hash, &(client_req.hash));
-                        printf("size: %d at %p\n\n", client_req.size, &(client_req.size));
-                        file_compare(i, &client_req);
-                    } else {  // client_req.type == TRANSFILE
-                        printf("3. Type: %d at %p\n", client_req.type, &(client_req.type));
-                        printf("path: %s at %p\n", client_req.path, &(client_req.path));
-                        printf("mode: %d at %p\n", client_req.mode, &(client_req.mode));
-                        printf("hash: %s at %p\n", client_req.hash, &(client_req.hash));
-                        printf("size: %d at %p\n\n", client_req.size, &(client_req.size));
-                        copy_file();
+                //struct request client_req;
+                //struct client cl;
+                printf("FD %d is set\n", i);
+                for (struct client *p = head; p != NULL; p++){
+                    if (p->fd == i){
+                        printf("HANDLING %d\n", i);
+                        if (handleclient(sock_fd, i, p) == -1){
+                            close(i);
+                            FD_CLR(i, &all_fds);
+                        } else{
+                            // Something?
+                        }
                     }
                 }
-
             }
         }
     }
@@ -290,45 +291,104 @@ void send_req(int sock_fd, struct request *req){
         exit(1);
     }
 
-    /*printf("1. Type: %d at %p\n", re->type, &(re->type));
-      printf("path: %s at %p\n", re->path, &(re->path));
-      printf("mode: %d at %p\n", re->mode, &(re->mode));
-      printf("hash: %s at %p\n", re->hash, &(re->hash));
-      printf("size: %d at %p\n\n", re->size, &(re->size));*/
+      printf("1. Type: %d at %p\n", req->type, &(req->type));
+      printf("path: %s at %p\n", req->path, &(req->path));
+      printf("mode: %d at %p\n", req->mode, &(req->mode));
+      printf("hash: %s at %p\n", req->hash, &(req->hash));
+      printf("size: %d at %p\n\n", req->size, &(req->size));
 }
 
 
 /*
  * Reads the 5 pieces of information from the client.
  */
-int handleclient(int server_fd, int client_fd, struct request *client_req){
-
+int handleclient(int server_fd, int client_fd, struct client *ct){
+    printf(">>>\n");
+    //struct request *client_req = &(ct->client_req);
+    printf("FFFFFDDDD ISSSS %d\n", ct->fd);
+    printf("%d\n", ct->client_req.type);
+    //struct request client_req = ct->client_req;
+    int num_read;
+    printf("WHERE");
     // About to receive data in order: type, path, mode, hash, size
-    int num_read = read(client_fd, &(client_req->type), sizeof(int));
-    if (num_read == 0){
-        return -1;
-    }
+    /*
+    // STEP 1: receive type of request from the server
+    if (ct.current_state == AWAITING_TYPE){
+    printf("DOES");
+      num_read = read(client_fd, &(client_req.type), sizeof(int));
+      if (num_read == 0){
+          return -1;
+      }
+      ct->current_state = AWAITING_PATH;
 
-    num_read = read(client_fd, client_req->path, MAXPATH);
-    if (num_read == 0){
-        return -1;
-    }
-    printf("Looking at: %s\n", client_req->path);
+    // STEP 2: receive the path of the file
+    } else if (ct->current_state == AWAITING_PATH){
+      printf("THIS");
+      num_read = read(client_fd, client_req.path, MAXPATH);
+      if (num_read == 0){
+          return -1;
+      }
+      ct->current_state = AWAITING_PERM;
 
-    num_read = read(client_fd, &(client_req->mode), sizeof(mode_t));
-    if (num_read == 0){
-        return -1;
-    }
+    // STEP 3: Mode
+    } else if (ct->current_state == AWAITING_PERM){
+      printf("GO");
+      num_read = read(client_fd, &(client_req->mode), sizeof(mode_t));
+      if (num_read == 0){
+          return -1;
+      }
+      ct->current_state = AWAITING_HASH;
 
-    num_read = read(client_fd, client_req->hash, BLOCKSIZE);
-    if (num_read == 0){
-        return -1;
-    }
+    // STEP 4: Hash
+    } else if (ct->current_state == AWAITING_HASH){
+      printf("WRONG");
+      num_read = read(client_fd, client_req->hash, BLOCKSIZE);
+      if (num_read == 0){
+          return -1;
+      }
+      ct->current_state = AWAITING_SIZE;
 
-    num_read = read(client_fd, &(client_req->size), sizeof(size_t));
-    if (num_read == 0){
-        return -1;
-    }
+    // Step 5: SIZE
+    } else if (ct->current_state == AWAITING_SIZE){
+      printf("GUYS");
+      num_read = read(client_fd, &(client_req->size), sizeof(size_t));
+      if (num_read == 0){
+          return -1;
+      }*/
+      // Done reading all information for the request. Need to decide what to
+      //  do next.
+      /*if (client_req->type == REGFILE){
+          printf("3. Type: %d at %p\n", client_req->type, &(client_req->type));
+          printf("path: %s at %p\n", client_req->path, &(client_req->path));
+          printf("mode: %d at %p\n", client_req->mode, &(client_req->mode));
+          printf("hash: %s at %p\n", client_req->hash, &(client_req->hash));
+          printf("size: %d at %p\n\n", client_req->size, &(client_req->size));
+          file_compare(client_fd, client_req);
+      } else if (client_req->type == REGDIR){
+          printf("3. Type: %d at %p\n", client_req->type, &(client_req->type));
+          printf("path: %s at %p\n", client_req->path, &(client_req->path));
+          printf("mode: %d at %p\n", client_req->mode, &(client_req->mode));
+          printf("hash: %s at %p\n", client_req->hash, &(client_req->hash));
+          printf("size: %d at %p\n\n", client_req->size, &(client_req->size));
+          file_compare(client_fd, client_req);
+      } else {  // client_req->type == TRANSFILE
+          /*printf("3. Type: %d at %p\n", client_req.type, &(client_req.type));
+          printf("path: %s at %p\n", client_req.path, &(client_req.path));
+          printf("mode: %d at %p\n", client_req.mode, &(client_req.mode));
+          printf("hash: %s at %p\n", client_req.hash, &(client_req.hash));
+          printf("size: %d at %p\n\n", client_req.size, &(client_req.size));*/
+          /*ct->current_state = AWAITING_DATA;
+          copy_file();*/
+      //}
+
+    /*} else if (ct->current_state == AWAITING_DATA){
+
+
+
+
+
+    }*/
+    printf("WHERE");
     //printf("%s\n", "Successful information transfer");
 
     /*printf("2. Type: %d at %p\n", client_req->type, &(client_req->type));
