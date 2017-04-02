@@ -114,8 +114,10 @@ void send_req(int sock_fd, struct request *req){
  * Return 
  * -- -1 for any error 
  * -- 0 for success
+ * -- >0 the number of child processes created
  */
-void traverse(const char *source, int sock_fd, char *host, unsigned short port){
+int traverse(const char *source, int sock_fd, char *host, unsigned short port){
+    static int child_count = 0;
 
     // make & send request for source 
     struct request client_req;
@@ -132,6 +134,9 @@ void traverse(const char *source, int sock_fd, char *host, unsigned short port){
 
 
     if (res == SENDFILE){
+
+        child_count++;
+
         int result = fork();
         if (result == 0){                // Child
 
@@ -222,7 +227,38 @@ void traverse(const char *source, int sock_fd, char *host, unsigned short port){
             }
         }
     } 
+    
+    return child_count;
 
+}
+
+/*
+ * The main client waits for count number of 
+ * child processes to terminate and report 
+ * -- nothing on success 
+ * -- error msg on error
+ */
+void client_wait(int count){
+
+    while(count-- != 0){
+        pid_t pid;
+        int status;
+        if((pid = wait(&status)) == -1) {
+            perror("client:wait");
+            exit(1);
+        } else {
+
+            if(!WIFEXITED(status)){
+                fprintf(stderr, "client:wait return no status\n");
+            } else if(WEXITSTATUS(status) == 0){
+                fprintf(stdout, "pid = [%d] terminated with success"
+                        "status = [%d]\n", pid, WEXITSTATUS(status));
+            } else if(WEXITSTATUS(status) == 1){
+                fprintf(stdout, "pid = [%d] terminated with error"
+                        "status = [%d]\n", pid, WEXITSTATUS(status));
+            }
+        }
+    }
 
 }
 

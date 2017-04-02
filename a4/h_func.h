@@ -54,9 +54,21 @@ void send_req(int sock_fd, struct request *req);
  * ------ transmit data from file 
  * ------ waits for OK, close socket and exits, otherwise handles error 
  * ----ERROR: print appropriate msg includes file name then exit(1) 
+ * Return 
+ * -- -1 for any error 
+ * -- 0 for success
+ * -- >0 the number of child processes created
  */
-void traverse(const char *source, int sock_fd, char *host, unsigned short port);
+int traverse(const char *source, int sock_fd, char *host, unsigned short port);
 
+
+/*
+ * The main client waits for count number of 
+ * child processes to terminate and report 
+ * -- nothing on success 
+ * -- error msg on error
+ */
+void client_wait(int count);
 
 /*********
  * SERVER
