@@ -30,6 +30,7 @@ int rcopy_client(char *source, char *host, unsigned short port){
     int child_count;
     child_count = traverse(source, sock_fd, host, port);
 
+
     // close main socket for tree traversal
     close(sock_fd);
 
@@ -37,7 +38,8 @@ int rcopy_client(char *source, char *host, unsigned short port){
     if(child_count == -1){
         fprintf(stderr, "Error on traversal\n");
     } else if(child_count >= 0){
-        printf("finished traversing tree!\n");
+        printf("=== Wait for copy to finish === \n");
+        printf("pid \tsize \tmode \tpath \thash\n");
         client_wait(child_count);
     }
 
@@ -68,7 +70,10 @@ void rcopy_server(unsigned short port){
     // head holds a linked list of client struct 
     struct client *head = malloc(sizeof(struct client));
 
-    while (1) {
+
+    int stop = 30;
+
+    while (stop-- != 0) {
         /* select updates the fd_set it receives,
          * so we always use a copy and retain the original.
          */
@@ -114,7 +119,7 @@ void rcopy_server(unsigned short port){
                  * result is 
                  * -- fd if
                  * ---- file transfer socket finish transfer file 
-                 * ---- main socket finish traversing filepath 
+                 * ---- main socket finish traversing filepath (dunno how to check this)
                  * -- 0 to continue reading req  
                  * -- -1 if sys call fails
                  */

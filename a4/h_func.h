@@ -14,6 +14,8 @@
 #include "hash.h"       // hash()
 #include "ftree.h"      // request stuct 
 
+#define BUFSIZE 256
+
 /*********
  * CLIENT
  *********/
@@ -40,6 +42,23 @@ void make_req(const char *path, struct request *client_req);
  * -- size
  */
 void send_req(int sock_fd, struct request *req);
+
+/*
+ * Returns 
+ * -- position of EOF in a char array buffer 
+ * -- -1 if not found
+ */
+int eof_pos(char *buffer);
+
+/*
+ * precondition: req.st_mode yields regular file 
+ * Sends data specified by req by 
+ * -- open file at req.path
+ * -- write to client socket where nbytes is
+ * ---- BUFSIZE if eof is not reached
+ * ---- position of EOF if eof is reached 
+ */ 
+void send_data(int fd, struct request *req);
 
 /*
  * Recursively traverses filepath rooted at source with sock_fd
@@ -149,6 +168,26 @@ int read_req(struct client *cli);
  * Return 
  */
 int compare_file(struct client *cli);
+
+/*
+ * Makes directory given client request with given 
+ * -- path 
+ * -- permission 
+ * Return -1 on error and fd if success
+ */
+int make_dir(struct client *cli);
+
+/*
+ * Makes file given client request with given 
+ * -- path 
+ * -- permission 
+ * Return 
+ * -- -1 on error 
+ * -- 0 if file copy not finished 
+ * -- fd if file copy finished
+ * (i.e. file transfer over multiple select calls)
+ */
+int make_file(struct client *cli);
 
 
 #endif // _H_FUNC_H_

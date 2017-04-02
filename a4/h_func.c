@@ -1,5 +1,7 @@
 #include <stdio.h>
+
 #include "h_func.h"
+#include "hash.h"
 
 
 /* Create a new socket that connects to host 
@@ -99,6 +101,69 @@ void send_req(int sock_fd, struct request *req){
 
 
 /*
+ * Returns 
+ * -- position of EOF in a char array buffer 
+ * -- -1 if not found
+ */
+int eof_pos(char *buffer){
+    for(int i = 0; i < BUFSIZE; i++){
+        if(buffer[i] == EOF){
+            return i;
+        }
+    }
+    return -1;
+}
+
+
+/*
+ * precondition: req.st_mode yields regular file 
+ * Sends data specified by req by 
+ * -- open file at req.path
+ * -- write to client socket where nbytes is
+ * ---- BUFSIZE if eof is not reached
+ * ---- position of EOF if eof is reached 
+ */ 
+void send_data(int fd, struct request *req){
+
+    FILE *f;
+    if((f = fopen(req->path, "r")) == NULL){
+        perror("client:open");
+        exit(1);
+    }
+    
+    int num_read, nbytes;
+    char buffer[BUFSIZE];
+
+    nbytes = BUFSIZE;
+
+    while((num_read = fread(buffer, 1, BUFSIZE, f)) > 0){
+
+        printf("here\n");
+        // update nbytes when reached eof
+        // TODO: have to fix this for this is not working as intended...
+        nbytes = (eof_pos(buffer) == -1) ? BUFSIZE : nbytes;
+        /* if(feof(f) != 0){ */
+        /*     nbytes = eof_pos(buffer); */
+        /*     printf("%d \t finished copying\n", fd); */
+        /* } else if(ferror(f) != 0){ */
+        /*     fprintf(stderr, "fread error: %s", req->path); */
+        /* } */
+        
+        if(write(fd, buffer, nbytes) == -1){
+            perror("client:write");
+            exit(1);
+        }
+    } 
+
+    if(fclose(f) != 0){
+        perror("client:fclose");
+        exit(1);
+    }
+
+
+}
+
+/*
  * Traverses filepath rooted at source with sock_fd
  * Then for each file or directory 
  * -- makes and sends request struct 
@@ -143,13 +208,29 @@ int traverse(const char *source, int sock_fd, char *host, unsigned short port){
             // Create a new socket for child process
             int child_sock_fd;
             child_sock_fd = client_sock(host, port);
+
+            // Sending request
+            int file_type = client_req.type;
             client_req.type = TRANSFILE;
             send_req(child_sock_fd, &client_req);
 
-            // TODO: Sending a file at source here... 
-            // Just have to add read() so that client.fd
-            // is selected and client.current_state gets 
-            // to AWAITING_DATA and sends back OK 
+            /* Copy file / dir has two scenario 
+             * based on the type of file / dir
+             * -- REGFILE 
+             * ---- client opens file and writes to client socket
+             * ---- server reads and creates new file 
+             * -- REGDIR   
+             * ---- client just have to wait for OK
+             * ---- server creates dir based on req alone 
+             */
+            printf("%d \t%d \t%d \t%s \t", 
+                getpid(), client_req.size, 
+                client_req.mode, client_req.path);
+            show_hash(client_req.hash);
+
+            if(file_type == REGFILE){
+                send_data(child_sock_fd, &client_req);
+            }
 
             /*
              * File sender client receives 2 possible responses
@@ -159,7 +240,6 @@ int traverse(const char *source, int sock_fd, char *host, unsigned short port){
              * -- print appropriate msg with file causing error 
              * -- and exit with status of 1
              */
-            printf("here blocked\n");
             num_read = read(child_sock_fd, &res, sizeof(int));
             fprintf(stderr, "%d", num_read);
             if(num_read != 1){
@@ -202,7 +282,6 @@ int traverse(const char *source, int sock_fd, char *host, unsigned short port){
         exit(1);
     }
 
-    printf("%d\n", file_buf.st_mode);
 
     // recursively call traverse() if source is a directory
     if (S_ISDIR(file_buf.st_mode)){              
@@ -234,9 +313,10 @@ int traverse(const char *source, int sock_fd, char *host, unsigned short port){
 
 /*
  * The main client waits for count number of 
- * child processes to terminate and report 
- * -- nothing on success 
- * -- error msg on error
+ * child processes to terminate and report
+ * based on exist status 
+ * 0 -- nothing
+ * 1 -- error msg 
  */
 void client_wait(int count){
 
@@ -251,6 +331,7 @@ void client_wait(int count){
             if(!WIFEXITED(status)){
                 fprintf(stderr, "client:wait return no status\n");
             } else if(WEXITSTATUS(status) == 0){
+                // TODO: remove this afterwards. here just for debugging..
                 fprintf(stdout, "pid = [%d] terminated with success"
                         "status = [%d]\n", pid, WEXITSTATUS(status));
             } else if(WEXITSTATUS(status) == 1){
@@ -387,6 +468,7 @@ void linkedlist_print(struct client *head){
 }
 
 
+
 /*
  * Reads request struct from client to cli over 5 write calls
  * In order of 
@@ -406,6 +488,7 @@ int read_req(struct client *cli){
     int num_read;
 
     struct request *req = &(cli->client_req);
+
     int state = cli->current_state;
     int fd = cli->fd;
 
@@ -448,39 +531,54 @@ int read_req(struct client *cli){
         }
 
         /*
-         * If request type is TRANSFILE 
-         * Advance current_state to AWAITING_DATA
-         * If request type is either REGFILE or REGDIR
-         * Send proper response signal and resets 
-         * current_state to beginning to accept the next request
+         * If request type is 
+         * TRANSFILE 
+         * -- Advance current_state to AWAITING_DATA
+         * -- if transfering directory, we create dir with req 
+         * REGFILE or REGDIR
+         * -- Send proper response signal 
+         * -- resets current_state to beginning to accept the next request
          */
         if(req->type == TRANSFILE){
+
+            if(S_ISDIR(req->mode)){
+                printf("sock = [%d] is copying dir [%s]\n", fd, req->path);
+                return make_dir(cli);
+            }
             cli->current_state = AWAITING_DATA;
         } else{
             compare_file(cli);
             cli->current_state = AWAITING_TYPE;
         }
 
+    // Only type=TRANSFILE and copy file (not dir) reach here
     } else if(state == AWAITING_DATA){
 
-        // TODO: transmit data over multiple read (try large file)
-        // also propagate error 
+        /* Copy file / dir has two scenario 
+         * based on the type of file / dir
+         * -- REGFILE 
+         * ---- client opens file and writes to client socket
+         * ---- server reads and creates new file 
+         * -- REGDIR   
+         * ---- client just have to wait for OK
+         * ---- server creates dir based on req alone 
+         */
 
-        // sending OK for now 
-        int response;
-        response = OK;
-        write(fd, &response, sizeof(int));
-        printf("%d \tres={%d} \t%d\n", fd, OK, cli->current_state);
+        if(S_ISREG(req->mode)){
+            printf("sock = [%d] is copying file [%s]\n", fd, req->path);
+            return make_file(cli);
+        } else if(S_ISDIR(req->mode)) {
+            printf("should not get here!\n");
+        }
 
-        return fd;
+        return 0;
     }
 
     return 0;
 }
 
 /*
- * Compare files
- * Based on client request (cli->client_req)
+ * Compare files based on client request (cli->client_req)
  * Sends res signal to client
  * SENDFILE
  * -- server_file does not exist 
@@ -535,3 +633,103 @@ int compare_file(struct client *cli){
     return 0;
 }
 
+
+/*
+ * Makes directory given client request with given 
+ * -- path 
+ * -- permission 
+ * Return -1 on error and fd if success
+ */
+int make_dir(struct client *cli){
+
+    struct request *req = &(cli->client_req);
+    int fd = cli->fd;
+
+    int perm = req->mode & (S_IRWXU | S_IRWXG | S_IRWXO);
+
+    if(mkdir(req->path, perm) == -1) {
+        perror("mkdir");
+        return -1;
+    }
+
+    int num_wrote, response;
+    response = OK;
+    num_wrote = write(fd, &response, sizeof(int));
+
+    printf("[%s] (dir) copy finished\n", req->path);
+    return fd;
+}
+
+
+/*
+ * Makes file given client request with given 
+ * -- path 
+ * -- permission 
+ * Return 
+ * -- -1 on error 
+ * -- 0 if file copy not finished 
+ * -- fd if file copy finished
+ * (i.e. file transfer over multiple select calls)
+ */
+int make_file(struct client *cli){
+
+    struct request *req = &(cli->client_req);
+    int fd = cli->fd;
+
+    int perm = req->mode & (S_IRWXU | S_IRWXG | S_IRWXO);
+
+    int nbytes = BUFSIZE;
+    int num_read;
+    int num_wrote;
+
+    // Open file for write, create file if not exist
+    FILE *dest_f;
+    if((dest_f = fopen(req->path, "w+")) == NULL) {
+        perror("server:fopen");
+        return -1; 
+    }
+
+    char buf[BUFSIZE];
+    num_read = read(fd, buf, nbytes);
+
+    printf("read %d bytes into buffer = [%s]\n", num_read, buf);
+
+    if(num_read == -1) {
+        perror("server:read");
+        return -1;
+    } else if(num_read != BUFSIZE){
+        nbytes = num_read;
+    } 
+
+    num_wrote = fwrite(buf, 1, nbytes, dest_f);
+    if(num_wrote != nbytes){
+        if(ferror(dest_f)){
+            fprintf(stderr, "server:fwrite error at [%s]\n", req->path);
+            return -1;
+        } 
+    }
+
+    // set permission 
+    if(chmod(req->path, perm) == -1){
+        fprintf(stderr, "chmod: cannot set permission for [%s]\n", req->path);
+    }
+
+
+    // close FILE *
+    if(fclose(dest_f) != 0){
+        perror("server:fclose");
+        return -1;
+    }
+
+    // copy is finished if read 
+    // -- is successful  
+    // -- number of bytes read is not BUFSIZE
+    if(nbytes != BUFSIZE){
+        int response = OK;
+        num_wrote = write(fd, &response, sizeof(int));
+        printf("[%s] (file) copy finished\n", req->path);
+        return fd;
+    }
+
+    return 0;
+}
