@@ -24,6 +24,7 @@ server:
 	./rcopy_server .
 
 client:
+	clear
 	./rcopy_client adir localhost
 
 debug:

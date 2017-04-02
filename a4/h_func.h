@@ -88,6 +88,18 @@ struct client {
 struct client *linkedlist_insert(struct client *head, int fd);
 
 /*
+ * Delete client in head linked list with given fd
+ * Return 0 if found and -1 if not found
+ */
+int linkedlist_delete(struct client *head, int fd);
+
+/*
+ * Print linked list at head 
+ * Each node is presented as fd 
+ */
+void linkedlist_print(struct client *head);
+
+/*
  * Creates server socket 
  * binds to PORT and starts litening to 
  * connection from INADDR_ANY 
@@ -103,8 +115,11 @@ int server_sock(unsigned short port);
  * -- hash 
  * -- size
  * Returns 
- * -- cli->fd if success
- * -- -1 if read failed
+ * -- fd if
+ * ---- file transfer socket finish transfer file 
+ * ---- main socket finish traversing filepath 
+ * -- 0 to continue reading req  
+ * -- -1 if sys call fails
  */
 int read_req(struct client *cli);
 

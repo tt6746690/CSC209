@@ -122,32 +122,30 @@ void traverse(const char *source, int sock_fd, char *host, unsigned short port){
     make_req(source, &client_req);
     send_req(sock_fd, &client_req);
 
-    printf("%d \t%d \t%d \t%s \n", 
-            getpid(), sock_fd, 
-            client_req.type, client_req.path);
-
-
     // wait for response from server
     int res;
     int num_read = read(sock_fd, &res, sizeof(int));    //TODO: error check
-    printf("Server response: [%d]\n", res);
+
+    printf("%d \t%d \t%d \t%d \t%s\n", 
+            getpid(), sock_fd, 
+            client_req.type, res, client_req.path);
+
 
     if (res == SENDFILE){
         int result = fork();
         if (result == 0){                // Child
 
+            // close parent sock_fd
+            close(sock_fd);
+
+            // Create a new socket for child process
             int child_sock_fd;
             child_sock_fd = client_sock(host, port);
             client_req.type = TRANSFILE;
             send_req(child_sock_fd, &client_req);
             
-            printf("%d \t%d \t%d \t%s \n", 
-                    getpid(), child_sock_fd, 
-                    client_req.type, client_req.path);
-
             // TODO: Sending a file at source here... 
 
-            close(child_sock_fd);
             /*
              * File sender client receives 2 possible responses
              * OK
@@ -156,15 +154,27 @@ void traverse(const char *source, int sock_fd, char *host, unsigned short port){
              * -- print appropriate msg with file causing error 
              * -- and exit with status of 1
              */
-            num_read = read(sock_fd, &res, sizeof(int));
+            num_read = read(child_sock_fd, &res, sizeof(int));
+            if(num_read != sizeof(int)){
+                perror("client:read");
+                exit(1);
+            }
+            close(child_sock_fd);
+
+            printf("%d \t%d \t%d \t%d \t%s\n", 
+                    getpid(), child_sock_fd, 
+                    client_req.type, res, client_req.path);
+
             if(res == OK){
                 exit(0);
             } else if (res == ERROR){
                 fprintf(stderr, "client: sock [%d] at [%s] receives "
                         "ERROR from server\n", child_sock_fd, source);
                 exit(1);
-            }
-            printf("sendfile again?");
+            } else {
+                printf("unexpected res = [%d]", res);
+            } 
+            exit(1);
 
         } else if (result < 0){
             perror("fork");
@@ -184,6 +194,8 @@ void traverse(const char *source, int sock_fd, char *host, unsigned short port){
         perror("client:lstat");
         exit(1);
     }
+
+    printf("%d\n", file_buf.st_mode);
 
     // recursively call traverse() if source is a directory
     if (S_ISDIR(file_buf.st_mode)){              
@@ -292,6 +304,50 @@ struct client *linkedlist_insert(struct client *head, int fd){
     return new_client;
 }
 
+/*
+ * Delete client in head linked list with given fd
+ * Return 0 if found and -1 if not found
+ */
+int linkedlist_delete(struct client *head, int fd){
+
+    struct client *curr_ptr;
+    struct client *prev_ptr = NULL;
+
+    for(curr_ptr = head->next; curr_ptr != NULL;
+            prev_ptr = curr_ptr, curr_ptr = curr_ptr->next){
+            
+        if(curr_ptr->fd == fd){
+
+            if(prev_ptr == NULL){
+                head->next = curr_ptr->next;
+            } else{
+                prev_ptr->next = curr_ptr->next;
+            }
+
+            free(curr_ptr);
+            return 0 ;
+        }
+        
+    }
+    return -1;
+
+}
+
+
+/*
+ * Print linked list at head 
+ * Each node is presented as fd 
+ */
+void linkedlist_print(struct client *head){
+    printf("\t\t\t\t\t\t HEAD -> ");
+    struct client *curr_ptr = head->next;
+    while(curr_ptr != NULL){
+        printf("%d -> ", curr_ptr->fd);
+        curr_ptr = curr_ptr->next;
+    }
+    printf(" NULL\n");
+}
+
 
 /*
  * Reads request struct from client to cli over 5 write calls
@@ -302,8 +358,11 @@ struct client *linkedlist_insert(struct client *head, int fd){
  * -- hash 
  * -- size
  * Returns 
- * -- cli->fd if success
- * -- -1 if read failed
+ * -- fd if
+ * ---- file transfer socket finish transfer file 
+ * ---- main socket finish traversing filepath 
+ * -- 0 to continue reading req  
+ * -- -1 if sys call fails
  */
 int read_req(struct client *cli){
     int num_read;
@@ -319,6 +378,7 @@ int read_req(struct client *cli){
                 return -1;
             }
             cli->current_state = AWAITING_PATH;
+            return 0;
         case AWAITING_PATH: 
             num_read = read(fd, req->path, MAXPATH);
             if (num_read == -1){
@@ -326,6 +386,7 @@ int read_req(struct client *cli){
                 return -1;
             }
             cli->current_state = AWAITING_PERM;
+            return 0;
         case AWAITING_PERM:
             num_read = read(fd, &(req->mode), sizeof(mode_t));
             if (num_read == -1){
@@ -333,6 +394,7 @@ int read_req(struct client *cli){
                 return -1;
             }
             cli->current_state = AWAITING_HASH;
+            return 0;
         case AWAITING_HASH: 
             num_read = read(fd, req->hash, BLOCKSIZE);
             if (num_read == -1){
@@ -340,38 +402,41 @@ int read_req(struct client *cli){
                 return -1;
             }
             cli->current_state = AWAITING_SIZE;
+            return 0;
         case AWAITING_SIZE:
             num_read = read(fd, &(req->size), sizeof(size_t));
             if (num_read == -1){
                 perror("server:read");
                 return -1;
             }
-
-            if(req->type == TRANSFILE){
-                cli->current_state = AWAITING_DATA;
-                return fd;
-            } 
-
+            
             /*
+             * If request type is TRANSFILE 
+             * Advance current_state to AWAITING_DATA
              * If request type is either REGFILE or REGDIR
              * Send proper response signal and resets 
              * current_state to beginning to accept the next request
              */
-            send_res(cli);
-            cli->current_state = AWAITING_TYPE;
+            if(req->type == TRANSFILE){
+                cli->current_state = AWAITING_DATA;
+            } else{
+                send_res(cli);
+                cli->current_state = AWAITING_TYPE;
+            }
 
+            return 0;
         case AWAITING_DATA: 
+            // TODO: transmit data over multiple read (try large file)
+            // also propagate error 
+
             // sending OK for now 
             write(fd, OK, sizeof(int));
+            printf("%d \tres={%d} \t%d\n", fd, OK, cli->current_state);
 
-            // TODO: send OK after all transmission 
-            // may propagate ERROR message to client 
-            // print error with appropriate name 
-            // remove ct from the linked list 
-
+            return fd;
     }
 
-    return fd;
+    return 0;
 }
 
 /*
@@ -423,7 +488,7 @@ int send_res(struct client *cli){
     }
 
     write(client_fd, &response, sizeof(int));
-    printf("server: sent response = [%d]\n", response);
+    printf("%d \tres={%d} \t%d\n", client_fd, response, cli->current_state);
     
     return 0;
 }
