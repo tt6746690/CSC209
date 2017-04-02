@@ -25,3 +25,7 @@ server:
 
 client:
 	./rcopy_client adir localhost
+
+debug:
+	chmod 777 sandbox && rm -r sandbox 
+	gdb ./rcopy_server

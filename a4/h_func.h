@@ -94,13 +94,23 @@ struct client *linkedlist_insert(struct client *head, int fd);
  */
 int server_sock(unsigned short port);
 
-// Reads request struct from client socket 
-int handle_cli(int server_fd, int client_fd, struct client *client_req);
+/*
+ * Reads request struct from client to cli over 5 write calls
+ * In order of 
+ * -- type 
+ * -- path 
+ * -- mode 
+ * -- hash 
+ * -- size
+ * Returns 
+ * -- cli->fd if success
+ * -- -1 if read failed
+ */
+int read_req(struct client *cli);
 
 // Take a struct req (of type REGFILE/REGDIR) and determines whether a copy
 // should be made (and tells the client).
-int file_compare(int client_fd, struct request *req);
+int send_res(struct client *cli);
 
-int copy_file();
 
 #endif // _H_FUNC_H_

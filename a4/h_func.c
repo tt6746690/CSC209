@@ -111,6 +111,9 @@ void send_req(int sock_fd, struct request *req){
  * ------ transmit data from file 
  * ------ waits for OK, close socket and exits, otherwise handles error 
  * ----ERROR: print appropriate msg includes file name then exit(1) 
+ * Return 
+ * -- -1 for any error 
+ * -- 0 for success
  */
 void traverse(const char *source, int sock_fd, char *host, unsigned short port){
 
@@ -119,15 +122,15 @@ void traverse(const char *source, int sock_fd, char *host, unsigned short port){
     make_req(source, &client_req);
     send_req(sock_fd, &client_req);
 
-    printf("Client sock=[%d] request: "
-            "type=[%d], path=[%s] \n", 
-            sock_fd, 
+    printf("%d \t%d \t%d \t%s \n", 
+            getpid(), sock_fd, 
             client_req.type, client_req.path);
+
 
     // wait for response from server
     int res;
     int num_read = read(sock_fd, &res, sizeof(int));    //TODO: error check
-    /* printf("Server response: [%d]\n", res); */
+    printf("Server response: [%d]\n", res);
 
     if (res == SENDFILE){
         int result = fork();
@@ -138,15 +141,31 @@ void traverse(const char *source, int sock_fd, char *host, unsigned short port){
             client_req.type = TRANSFILE;
             send_req(child_sock_fd, &client_req);
             
-            printf("Client sock=[%d] request: "
-                    "type=[%d], path=[%s] \t TRANSFILE\n", 
-                    child_sock_fd, 
+            printf("%d \t%d \t%d \t%s \n", 
+                    getpid(), child_sock_fd, 
                     client_req.type, client_req.path);
 
-            // TODO: then send in file without expecting a message 
-            // then wait for OK message  
+            // TODO: Sending a file at source here... 
 
-            exit(1);
+            close(child_sock_fd);
+            /*
+             * File sender client receives 2 possible responses
+             * OK
+             * -- terminate child process with exit status of 0
+             * ERROR
+             * -- print appropriate msg with file causing error 
+             * -- and exit with status of 1
+             */
+            num_read = read(sock_fd, &res, sizeof(int));
+            if(res == OK){
+                exit(0);
+            } else if (res == ERROR){
+                fprintf(stderr, "client: sock [%d] at [%s] receives "
+                        "ERROR from server\n", child_sock_fd, source);
+                exit(1);
+            }
+            printf("sendfile again?");
+
         } else if (result < 0){
             perror("fork");
             exit(1);
@@ -189,8 +208,8 @@ void traverse(const char *source, int sock_fd, char *host, unsigned short port){
             }
         }
     } 
+    
 
-    return;
 }
 
 
@@ -264,143 +283,148 @@ struct client *linkedlist_insert(struct client *head, int fd){
         exit(1);
     }
 
-    new_client->fd = fd;
     end->next = new_client;
+
+    // default values for client
+    new_client->fd = fd;
+    (new_client->client_req).type = AWAITING_TYPE;
     
     return new_client;
 }
 
+
 /*
- * Reads request struct from client socket 
+ * Reads request struct from client to cli over 5 write calls
+ * In order of 
+ * -- type 
+ * -- path 
+ * -- mode 
+ * -- hash 
+ * -- size
+ * Returns 
+ * -- cli->fd if success
+ * -- -1 if read failed
  */
-int handle_cli(int server_fd, int client_fd, struct client *ct){
-    struct request *client_req = &(ct->client_req);
+int read_req(struct client *cli){
     int num_read;
+    
+    struct request *req = &(cli->client_req);
+    int fd = cli->fd;
 
-    // About to receive data in order: type, path, mode, hash, size
-    // STEP 1: receive type of request from the server
-    if (ct->current_state == AWAITING_TYPE){
-        num_read = read(client_fd, &(client_req->type), sizeof(int));
-        if (num_read == 0){
-            return -1;
-        }
-        ct->current_state = AWAITING_PATH;
+    switch (cli->current_state){
+        case AWAITING_TYPE:
+            num_read = read(fd, &(req->type), sizeof(int));
+            if (num_read == -1){
+                perror("server:read");
+                return -1;
+            }
+            cli->current_state = AWAITING_PATH;
+        case AWAITING_PATH: 
+            num_read = read(fd, req->path, MAXPATH);
+            if (num_read == -1){
+                perror("server:read");
+                return -1;
+            }
+            cli->current_state = AWAITING_PERM;
+        case AWAITING_PERM:
+            num_read = read(fd, &(req->mode), sizeof(mode_t));
+            if (num_read == -1){
+                perror("server:read");
+                return -1;
+            }
+            cli->current_state = AWAITING_HASH;
+        case AWAITING_HASH: 
+            num_read = read(fd, req->hash, BLOCKSIZE);
+            if (num_read == -1){
+                perror("server:read");
+                return -1;
+            }
+            cli->current_state = AWAITING_SIZE;
+        case AWAITING_SIZE:
+            num_read = read(fd, &(req->size), sizeof(size_t));
+            if (num_read == -1){
+                perror("server:read");
+                return -1;
+            }
 
-        // STEP 2: receive the path of the file
-    } else if (ct->current_state == AWAITING_PATH){
-        num_read = read(client_fd, client_req->path, MAXPATH);
-        if (num_read == 0){
-            return -1;
-        }
-        ct->current_state = AWAITING_PERM;
+            if(req->type == TRANSFILE){
+                cli->current_state = AWAITING_DATA;
+                return fd;
+            } 
 
-        // STEP 3: Mode
-    } else if (ct->current_state == AWAITING_PERM){
-        num_read = read(client_fd, &(client_req->mode), sizeof(mode_t));
-        if (num_read == 0){
-            return -1;
-        }
-        ct->current_state = AWAITING_HASH;
+            /*
+             * If request type is either REGFILE or REGDIR
+             * Send proper response signal and resets 
+             * current_state to beginning to accept the next request
+             */
+            send_res(cli);
+            cli->current_state = AWAITING_TYPE;
 
-        // STEP 4: Hash
-    } else if (ct->current_state == AWAITING_HASH){
-        num_read = read(client_fd, client_req->hash, BLOCKSIZE);
-        if (num_read == 0){
-            return -1;
-        }
-        ct->current_state = AWAITING_SIZE;
+        case AWAITING_DATA: 
+            // sending OK for now 
+            write(fd, OK, sizeof(int));
 
-        // Step 5: SIZE
-    } else if (ct->current_state == AWAITING_SIZE){
-        num_read = read(client_fd, &(client_req->size), sizeof(size_t));
-        if (num_read == 0){
-            return -1;
-        }
-        // Done reading all information for the request. Need to decide what to
-        //  do next.
-        if (client_req->type == REGFILE){
-            /*printf("3. Type: %d at %p\n", client_req->type, &(client_req->type));
-              printf("path: %s at %p\n", client_req->path, &(client_req->path));
-              printf("mode: %d at %p\n", client_req->mode, &(client_req->mode));
-              printf("hash: %s at %p\n", client_req->hash, &(client_req->hash));
-              printf("size: %d at %p\n\n", client_req->size, &(client_req->size));*/
-            file_compare(client_fd, client_req);
-        } else if (client_req->type == REGDIR){
-            /*printf("3. Type: %d at %p\n", client_req->type, &(client_req->type));
-              printf("path: %s at %p\n", client_req->path, &(client_req->path));
-              printf("mode: %d at %p\n", client_req->mode, &(client_req->mode));
-              printf("hash: %s at %p\n", client_req->hash, &(client_req->hash));
-              printf("size: %d at %p\n\n", client_req->size, &(client_req->size));*/
-            file_compare(client_fd, client_req);
-        } else {  // client_req->type == TRANSFILE
-            /*printf("3. Type: %d at %p\n", client_req.type, &(client_req.type));
-              printf("path: %s at %p\n", client_req.path, &(client_req.path));
-              printf("mode: %d at %p\n", client_req.mode, &(client_req.mode));
-              printf("hash: %s at %p\n", client_req.hash, &(client_req.hash));
-              printf("size: %d at %p\n\n", client_req.size, &(client_req.size));*/
-            ct->current_state = AWAITING_DATA;
-        }
+            // TODO: send OK after all transmission 
+            // may propagate ERROR message to client 
+            // print error with appropriate name 
+            // remove ct from the linked list 
 
-    } else if (ct->current_state == AWAITING_DATA){
-        copy_file();
-        // TODO: send OK after all transmission 
-        // may propagate ERROR message to client 
-        // print error with appropriate name 
-        // remove ct from the linked list 
     }
-    //printf("%s\n", "Successful information transfer");
 
-    /*printf("2. Type: %d at %p\n", client_req->type, &(client_req->type));
-      printf("path: %s at %p\n", client_req->path, &(client_req->path));
-      printf("mode: %d at %p\n", client_req->mode, &(client_req->mode));
-      printf("hash: %s at %p\n", client_req->hash, &(client_req->hash));
-      printf("size: %d at %p\n", client_req->size, &(client_req->size));*/
-
-
-    return client_fd;
+    return fd;
 }
+
 /*
- * Take a struct req (of type REGFILE/REGDIR) and determines whether a copy
- * should be made (and tells the client).
+ * Based on client request (cli->client_req)
+ * Sends res signal to client
+ * SENDFILE
+ * -- server_file does not exist 
+ * -- server_file different in hash from client_file 
+ * OK
+ * -- server_file and client_file are identical 
+ * ERROR 
+ * -- file types are incompatible (i.e. file vs. directory)
+ * Return 
  */
-int file_compare(int client_fd, struct request *req){
-    //struct stat server_file_stat;
-    struct request new_request = *req;
-    FILE *server_file = fopen(new_request.path, "r");
+int send_res(struct client *cli){
+
+    int response = 0;
+
+    struct request req = cli->client_req;
+    int client_fd = cli->fd;
+
+    // Check if file exists on server
+    FILE *server_file = fopen(req.path, "r");
     if (server_file == NULL && errno != ENOENT){
         perror("fopen");
-        exit(1);
+        return -1;
     }
+
+    // Compare hash if file does exists 
     int compare = 0;
     if (server_file != NULL){
         char file_hash[BLOCKSIZE];
-        printf("%s exist on server\n", new_request.path);
-        if (chmod(new_request.path, new_request.mode) == -1){
+        printf("%s exist on server\n", req.path);
+        if (chmod(req.path, req.mode) == -1){
             perror("chmod");
             exit(1);
         }
         hash(file_hash, server_file);
-        compare = check_hash(new_request.hash, file_hash);
+        compare = check_hash(req.hash, file_hash);
         //show_hash(new_request.hash);
         //show_hash(file_hash);
     }
-    int response = 0;
+
+    // Sends appropriate response 
     if (compare || server_file == NULL){
-        printf("Gotta copy %s\n", new_request.path);
-        printf("\tcomp = %d\n", compare);
-        if (server_file == NULL){
-            printf("\t NULL!");
-        }
         response = SENDFILE;
     } else{
         response = OK;
     }
+
     write(client_fd, &response, sizeof(int));
+    printf("server: sent response = [%d]\n", response);
+    
     return 0;
 }
 
-int copy_file(){
-
-    return 0;
-
-}

@@ -18,11 +18,18 @@ int rcopy_client(char *source, char *host, unsigned short port){
     int sock_fd;
     sock_fd = client_sock(host, port);
 
-    traverse(source, sock_fd, host, port);
 
     printf("=== INFO ===\n");
-    fprintf(stderr, "req.type: REGFILE=[1]; REGDIR=[2]; TRANSFILE=[3]\n");
-    fprintf(stderr, "res.type: OK=[0]; SENDFILE=[1]; ERROR=[2]\n");
+    fprintf(stdout, "req\t REGFILE=[1]\tREGDIR=[2]\tTRANSFILE=[3]\n");
+    fprintf(stdout, "res\t OK=[0]\tSENDFILE=[1]\tERROR=[2]\n");
+
+    printf("=== Tree traversal === \n");
+    printf("pid \tsock \ttype \tpath\n");
+
+    traverse(source, sock_fd, host, port);
+
+    // TODO: error checking to traverse and close fd properly 
+    close(sock_fd);
 
     return -1;
 }
@@ -46,7 +53,7 @@ void rcopy_server(unsigned short port){
     FD_SET(sock_fd, &all_fds);
 
     // head holds a linked list of client struct 
-    struct client *head = NULL;
+    struct client *head = malloc(sizeof(struct client));
 
     while (1) {
         /* select updates the fd_set it receives,
@@ -80,11 +87,14 @@ void rcopy_server(unsigned short port){
         }
 
 
-        // Send proper response on active clients in linked list head
-        for(struct client*p = head; p != NULL; p = p->next){
+        /* Send proper response on active clients in linked list head
+         * Note pointer p starts from head->next as the first valid client
+         */
+        for(struct client*p = head->next; p != NULL; p = p->next){
             if(FD_ISSET(p->fd, &listen_fds)){
 
-                int ret = handle_cli(sock_fd, p->fd, p); 
+                printf("Server: client fd = [%d] is accepted\n", p->fd);
+                int ret = read_req(p); 
 
                 if (ret == -1){
                     FD_CLR(p->fd, &all_fds);
@@ -92,6 +102,7 @@ void rcopy_server(unsigned short port){
                 } else{
                     printf("Connection %d in state [%d]\n", p->fd, p->current_state);
                 }
+
 
             }
         }
