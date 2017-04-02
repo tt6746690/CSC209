@@ -28,10 +28,12 @@ int rcopy_client(char *source, char *host, unsigned short port){
 
     traverse(source, sock_fd, host, port);
 
+    printf("finished traversing tree!\n");
+
     // TODO: error checking to traverse and close fd properly 
     close(sock_fd);
 
-    return -1;
+    return 0;
 }
 
 

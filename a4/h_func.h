@@ -123,9 +123,20 @@ int server_sock(unsigned short port);
  */
 int read_req(struct client *cli);
 
-// Take a struct req (of type REGFILE/REGDIR) and determines whether a copy
-// should be made (and tells the client).
-int send_res(struct client *cli);
+/*
+ * Compare files
+ * Based on client request (cli->client_req)
+ * Sends res signal to client
+ * SENDFILE
+ * -- server_file does not exist 
+ * -- server_file different in hash from client_file 
+ * OK
+ * -- server_file and client_file are identical 
+ * ERROR 
+ * -- file types are incompatible (i.e. file vs. directory)
+ * Return 
+ */
+int compare_file(struct client *cli);
 
 
 #endif // _H_FUNC_H_

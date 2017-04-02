@@ -135,16 +135,16 @@ void traverse(const char *source, int sock_fd, char *host, unsigned short port){
         int result = fork();
         if (result == 0){                // Child
 
-            // close parent sock_fd
-            close(sock_fd);
-
             // Create a new socket for child process
             int child_sock_fd;
             child_sock_fd = client_sock(host, port);
             client_req.type = TRANSFILE;
             send_req(child_sock_fd, &client_req);
-            
+
             // TODO: Sending a file at source here... 
+            // Just have to add read() so that client.fd
+            // is selected and client.current_state gets 
+            // to AWAITING_DATA and sends back OK 
 
             /*
              * File sender client receives 2 possible responses
@@ -154,8 +154,10 @@ void traverse(const char *source, int sock_fd, char *host, unsigned short port){
              * -- print appropriate msg with file causing error 
              * -- and exit with status of 1
              */
+            printf("here blocked\n");
             num_read = read(child_sock_fd, &res, sizeof(int));
-            if(num_read != sizeof(int)){
+            fprintf(stderr, "%d", num_read);
+            if(num_read != 1){
                 perror("client:read");
                 exit(1);
             }
@@ -220,7 +222,7 @@ void traverse(const char *source, int sock_fd, char *host, unsigned short port){
             }
         }
     } 
-    
+
 
 }
 
@@ -300,7 +302,7 @@ struct client *linkedlist_insert(struct client *head, int fd){
     // default values for client
     new_client->fd = fd;
     (new_client->client_req).type = AWAITING_TYPE;
-    
+
     return new_client;
 }
 
@@ -315,7 +317,7 @@ int linkedlist_delete(struct client *head, int fd){
 
     for(curr_ptr = head->next; curr_ptr != NULL;
             prev_ptr = curr_ptr, curr_ptr = curr_ptr->next){
-            
+
         if(curr_ptr->fd == fd){
 
             if(prev_ptr == NULL){
@@ -327,7 +329,7 @@ int linkedlist_delete(struct client *head, int fd){
             free(curr_ptr);
             return 0 ;
         }
-        
+
     }
     return -1;
 
@@ -366,80 +368,82 @@ void linkedlist_print(struct client *head){
  */
 int read_req(struct client *cli){
     int num_read;
-    
+
     struct request *req = &(cli->client_req);
+    int state = cli->current_state;
     int fd = cli->fd;
 
-    switch (cli->current_state){
-        case AWAITING_TYPE:
-            num_read = read(fd, &(req->type), sizeof(int));
-            if (num_read == -1){
-                perror("server:read");
-                return -1;
-            }
-            cli->current_state = AWAITING_PATH;
-            return 0;
-        case AWAITING_PATH: 
-            num_read = read(fd, req->path, MAXPATH);
-            if (num_read == -1){
-                perror("server:read");
-                return -1;
-            }
-            cli->current_state = AWAITING_PERM;
-            return 0;
-        case AWAITING_PERM:
-            num_read = read(fd, &(req->mode), sizeof(mode_t));
-            if (num_read == -1){
-                perror("server:read");
-                return -1;
-            }
-            cli->current_state = AWAITING_HASH;
-            return 0;
-        case AWAITING_HASH: 
-            num_read = read(fd, req->hash, BLOCKSIZE);
-            if (num_read == -1){
-                perror("server:read");
-                return -1;
-            }
-            cli->current_state = AWAITING_SIZE;
-            return 0;
-        case AWAITING_SIZE:
-            num_read = read(fd, &(req->size), sizeof(size_t));
-            if (num_read == -1){
-                perror("server:read");
-                return -1;
-            }
-            
-            /*
-             * If request type is TRANSFILE 
-             * Advance current_state to AWAITING_DATA
-             * If request type is either REGFILE or REGDIR
-             * Send proper response signal and resets 
-             * current_state to beginning to accept the next request
-             */
-            if(req->type == TRANSFILE){
-                cli->current_state = AWAITING_DATA;
-            } else{
-                send_res(cli);
-                cli->current_state = AWAITING_TYPE;
-            }
+    if(state == AWAITING_TYPE){
+        num_read = read(fd, &(req->type), sizeof(int));
+        if (num_read == -1){
+            perror("server:read");
+            return -1;
+        }
+        cli->current_state = AWAITING_PATH;
+    } else if(state == AWAITING_PATH){
+        num_read = read(fd, req->path, MAXPATH);
+        if (num_read == -1){
+            perror("server:read");
+            return -1;
+        }
+        cli->current_state = AWAITING_PERM;
+    } else if(state == AWAITING_PERM){
 
-            return 0;
-        case AWAITING_DATA: 
-            // TODO: transmit data over multiple read (try large file)
-            // also propagate error 
+        num_read = read(fd, &(req->mode), sizeof(mode_t));
+        if (num_read == -1){
+            perror("server:read");
+            return -1;
+        }
+        cli->current_state = AWAITING_HASH;
+    } else if(state == AWAITING_HASH){
 
-            // sending OK for now 
-            write(fd, OK, sizeof(int));
-            printf("%d \tres={%d} \t%d\n", fd, OK, cli->current_state);
+        num_read = read(fd, req->hash, BLOCKSIZE);
+        if (num_read == -1){
+            perror("server:read");
+            return -1;
+        }
+        cli->current_state = AWAITING_SIZE;
+    } else if(state == AWAITING_SIZE){
 
-            return fd;
+        num_read = read(fd, &(req->size), sizeof(size_t));
+        if (num_read == -1){
+            perror("server:read");
+            return -1;
+        }
+
+        /*
+         * If request type is TRANSFILE 
+         * Advance current_state to AWAITING_DATA
+         * If request type is either REGFILE or REGDIR
+         * Send proper response signal and resets 
+         * current_state to beginning to accept the next request
+         */
+        if(req->type == TRANSFILE){
+            cli->current_state = AWAITING_DATA;
+        } else{
+            compare_file(cli);
+            cli->current_state = AWAITING_TYPE;
+        }
+
+    } else if(state == AWAITING_DATA){
+
+        // TODO: transmit data over multiple read (try large file)
+        // also propagate error 
+
+        // sending OK for now 
+        int response;
+        response = OK;
+        write(fd, &response, sizeof(int));
+        printf("%d \tres={%d} \t%d\n", fd, OK, cli->current_state);
+
+        return fd;
     }
 
     return 0;
 }
 
 /*
+ * Compare files
  * Based on client request (cli->client_req)
  * Sends res signal to client
  * SENDFILE
@@ -451,12 +455,14 @@ int read_req(struct client *cli){
  * -- file types are incompatible (i.e. file vs. directory)
  * Return 
  */
-int send_res(struct client *cli){
+int compare_file(struct client *cli){
 
     int response = 0;
 
     struct request req = cli->client_req;
     int client_fd = cli->fd;
+
+    printf("%s\n", (cli->client_req).path);
 
     // Check if file exists on server
     FILE *server_file = fopen(req.path, "r");
@@ -489,7 +495,7 @@ int send_res(struct client *cli){
 
     write(client_fd, &response, sizeof(int));
     printf("%d \tres={%d} \t%d\n", client_fd, response, cli->current_state);
-    
+
     return 0;
 }
 
