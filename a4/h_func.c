@@ -4,7 +4,7 @@
 #include "hash.h"
 
 
-/* Create a new socket that connects to host 
+/* Create a new socket that connects to host
  * Waiting for a successful connection
  * Returns sock_fd and exits should error arises
  */
@@ -38,8 +38,8 @@ int client_sock(char *host, unsigned short port){
     return sock_fd;
 }
 /* Construct client request for file/dir at path
- * request is modified to accomodate changes 
- * exits process on error 
+ * request is modified to accomodate changes
+ * exits process on error
  */
 void make_req(const char *path, struct request *req){
 
@@ -69,11 +69,11 @@ void make_req(const char *path, struct request *req){
 
 /*
  * Sends request struct to sock_fd over 5 read calls
- * In order of 
- * -- type 
- * -- path 
- * -- mode 
- * -- hash 
+ * In order of
+ * -- type
+ * -- path
+ * -- mode
+ * -- hash
  * -- size
  */
 void send_req(int sock_fd, struct request *req){
@@ -101,8 +101,8 @@ void send_req(int sock_fd, struct request *req){
 
 
 /*
- * Returns 
- * -- position of EOF in a char array buffer 
+ * Returns
+ * -- position of EOF in a char array buffer
  * -- -1 if not found
  */
 int eof_pos(char *buffer){
@@ -116,13 +116,13 @@ int eof_pos(char *buffer){
 
 
 /*
- * precondition: req.st_mode yields regular file 
- * Sends data specified by req by 
+ * precondition: req.st_mode yields regular file
+ * Sends data specified by req by
  * -- open file at req.path
  * -- write to client socket where nbytes is
  * ---- BUFSIZE if eof is not reached
- * ---- position of EOF if eof is reached 
- */ 
+ * ---- position of EOF if eof is reached
+ */
 void send_data(int fd, struct request *req){
 
     FILE *f;
@@ -130,15 +130,15 @@ void send_data(int fd, struct request *req){
         perror("client:open");
         exit(1);
     }
-    
+
     int num_read, nbytes;
     char buffer[BUFSIZE];
 
     nbytes = BUFSIZE;
 
     while((num_read = fread(buffer, 1, BUFSIZE, f)) > 0){
-
-        printf("here\n");
+        printf("%s\n", buffer);
+        //printf("here\n");
         // update nbytes when reached eof
         // TODO: have to fix this for this is not working as intended...
         nbytes = (eof_pos(buffer) == -1) ? BUFSIZE : nbytes;
@@ -148,12 +148,13 @@ void send_data(int fd, struct request *req){
         /* } else if(ferror(f) != 0){ */
         /*     fprintf(stderr, "fread error: %s", req->path); */
         /* } */
-        
+
         if(write(fd, buffer, nbytes) == -1){
             perror("client:write");
             exit(1);
         }
-    } 
+
+    }
 
     if(fclose(f) != 0){
         perror("client:fclose");
@@ -165,26 +166,26 @@ void send_data(int fd, struct request *req){
 
 /*
  * Traverses filepath rooted at source with sock_fd
- * Then for each file or directory 
- * -- makes and sends request struct 
+ * Then for each file or directory
+ * -- makes and sends request struct
  * -- waits for response from server
- * ---- OK: continue to next file 
- * ---- SENDFILE: 
+ * ---- OK: continue to next file
+ * ---- SENDFILE:
  * ------ forks new process, main process continues to next file, child:
  * ------ initiate new connection with server w/e request.type = TRANSFILE
- * ------ makes and sends request struct  
- * ------ transmit data from file 
- * ------ waits for OK, close socket and exits, otherwise handles error 
- * ----ERROR: print appropriate msg includes file name then exit(1) 
- * Return 
- * -- -1 for any error 
+ * ------ makes and sends request struct
+ * ------ transmit data from file
+ * ------ waits for OK, close socket and exits, otherwise handles error
+ * ----ERROR: print appropriate msg includes file name then exit(1)
+ * Return
+ * -- -1 for any error
  * -- 0 for success
  * -- >0 the number of child processes created
  */
 int traverse(const char *source, int sock_fd, char *host, unsigned short port){
     static int child_count = 0;
 
-    // make & send request for source 
+    // make & send request for source
     struct request client_req;
     make_req(source, &client_req);
     send_req(sock_fd, &client_req);
@@ -193,8 +194,8 @@ int traverse(const char *source, int sock_fd, char *host, unsigned short port){
     int res;
     int num_read = read(sock_fd, &res, sizeof(int));    //TODO: error check
 
-    printf("%d \t%d \t%d \t%d \t%s\n", 
-            getpid(), sock_fd, 
+    printf("%d \t%d \t%d \t%d \t%s\n",
+            getpid(), sock_fd,
             client_req.type, res, client_req.path);
 
 
@@ -214,17 +215,17 @@ int traverse(const char *source, int sock_fd, char *host, unsigned short port){
             client_req.type = TRANSFILE;
             send_req(child_sock_fd, &client_req);
 
-            /* Copy file / dir has two scenario 
+            /* Copy file / dir has two scenario
              * based on the type of file / dir
-             * -- REGFILE 
+             * -- REGFILE
              * ---- client opens file and writes to client socket
-             * ---- server reads and creates new file 
-             * -- REGDIR   
+             * ---- server reads and creates new file
+             * -- REGDIR
              * ---- client just have to wait for OK
-             * ---- server creates dir based on req alone 
+             * ---- server creates dir based on req alone
              */
-            printf("%d \t%d \t%d \t%s \t", 
-                getpid(), client_req.size, 
+            printf("%d \t%d \t%d \t%s \t",
+                getpid(), client_req.size,
                 client_req.mode, client_req.path);
             show_hash(client_req.hash);
 
@@ -237,19 +238,19 @@ int traverse(const char *source, int sock_fd, char *host, unsigned short port){
              * OK
              * -- terminate child process with exit status of 0
              * ERROR
-             * -- print appropriate msg with file causing error 
+             * -- print appropriate msg with file causing error
              * -- and exit with status of 1
              */
             num_read = read(child_sock_fd, &res, sizeof(int));
-            fprintf(stderr, "%d", num_read);
-            if(num_read != 1){
+            fprintf(stderr, "%d\n", num_read);
+            if(num_read == -1){
                 perror("client:read");
                 exit(1);
             }
             close(child_sock_fd);
 
-            printf("%d \t%d \t%d \t%d \t%s\n", 
-                    getpid(), child_sock_fd, 
+            printf("%d \t%d \t%d \t%d \t%s\n",
+                    getpid(), child_sock_fd,
                     client_req.type, res, client_req.path);
 
             if(res == OK){
@@ -260,7 +261,7 @@ int traverse(const char *source, int sock_fd, char *host, unsigned short port){
                 exit(1);
             } else {
                 printf("unexpected res = [%d]", res);
-            } 
+            }
             exit(1);
 
         } else if (result < 0){
@@ -275,7 +276,7 @@ int traverse(const char *source, int sock_fd, char *host, unsigned short port){
     }
 
 
-    // tree traversal 
+    // tree traversal
     struct stat file_buf;
     if (lstat(source, &file_buf)){
         perror("client:lstat");
@@ -284,8 +285,8 @@ int traverse(const char *source, int sock_fd, char *host, unsigned short port){
 
 
     // recursively call traverse() if source is a directory
-    if (S_ISDIR(file_buf.st_mode)){              
-        DIR *dirp; 
+    if (S_ISDIR(file_buf.st_mode)){
+        DIR *dirp;
         struct dirent *dp;
 
         if ((dirp = opendir(source)) == NULL){
@@ -305,18 +306,18 @@ int traverse(const char *source, int sock_fd, char *host, unsigned short port){
                 traverse(src_path, sock_fd, host, port);
             }
         }
-    } 
-    
+    }
+
     return child_count;
 
 }
 
 /*
- * The main client waits for count number of 
+ * The main client waits for count number of
  * child processes to terminate and report
- * based on exist status 
+ * based on exist status
  * 0 -- nothing
- * 1 -- error msg 
+ * 1 -- error msg
  */
 void client_wait(int count){
 
@@ -345,13 +346,13 @@ void client_wait(int count){
 
 
 /*
- * Creates server socket 
- * binds to PORT and starts litening to 
- * connection from INADDR_ANY 
+ * Creates server socket
+ * binds to PORT and starts litening to
+ * connection from INADDR_ANY
  */
 int server_sock(unsigned short port){
     int sock_fd;
-    int on = 1, status; 
+    int on = 1, status;
 
     sock_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (sock_fd < 0) {
@@ -359,7 +360,7 @@ int server_sock(unsigned short port){
         exit(1);
     }
 
-    // Configure option to use same port 
+    // Configure option to use same port
     status = setsockopt(sock_fd, SOL_SOCKET, SO_REUSEADDR,
             (const char *) &on, sizeof(on));
     if(status == -1) {
@@ -392,9 +393,9 @@ int server_sock(unsigned short port){
 }
 
 /*
- * Allocates memory for a new struct client 
- * at end of linked list with given fd 
- * Returns pointer to the newly created element 
+ * Allocates memory for a new struct client
+ * at end of linked list with given fd
+ * Returns pointer to the newly created element
  */
 struct client *linkedlist_insert(struct client *head, int fd){
 
@@ -406,8 +407,8 @@ struct client *linkedlist_insert(struct client *head, int fd){
         end = end->next;
     }
 
-    /* allocates memory for a new client struct 
-     * and insert till end of linked list */ 
+    /* allocates memory for a new client struct
+     * and insert till end of linked list */
     struct client *new_client;
     if((new_client = malloc(sizeof(struct client))) == NULL) {
         perror("server:malloc");
@@ -454,8 +455,8 @@ int linkedlist_delete(struct client *head, int fd){
 
 
 /*
- * Print linked list at head 
- * Each node is presented as fd 
+ * Print linked list at head
+ * Each node is presented as fd
  */
 void linkedlist_print(struct client *head){
     printf("\t\t\t\t\t\t HEAD -> ");
@@ -471,17 +472,17 @@ void linkedlist_print(struct client *head){
 
 /*
  * Reads request struct from client to cli over 5 write calls
- * In order of 
- * -- type 
- * -- path 
- * -- mode 
- * -- hash 
+ * In order of
+ * -- type
+ * -- path
+ * -- mode
+ * -- hash
  * -- size
- * Returns 
+ * Returns
  * -- fd if
- * ---- file transfer socket finish transfer file 
- * ---- main socket finish traversing filepath 
- * -- 0 to continue reading req  
+ * ---- file transfer socket finish transfer file
+ * ---- main socket finish traversing filepath
+ * -- 0 to continue reading req (default behaviour)
  * -- -1 if sys call fails
  */
 int read_req(struct client *cli){
@@ -529,39 +530,37 @@ int read_req(struct client *cli){
             perror("server:read");
             return -1;
         }
-
         /*
-         * If request type is 
-         * TRANSFILE 
+         * If request type is
+         * TRANSFILE
          * -- Advance current_state to AWAITING_DATA
-         * -- if transfering directory, we create dir with req 
+         * -- if transfering directory, we create dir with req
          * REGFILE or REGDIR
-         * -- Send proper response signal 
+         * -- Send proper response signal
          * -- resets current_state to beginning to accept the next request
          */
         if(req->type == TRANSFILE){
-
             if(S_ISDIR(req->mode)){
                 printf("sock = [%d] is copying dir [%s]\n", fd, req->path);
                 return make_dir(cli);
             }
             cli->current_state = AWAITING_DATA;
         } else{
-            compare_file(cli);
+            compare_file(cli); // TODO return type necessary?
             cli->current_state = AWAITING_TYPE;
         }
 
     // Only type=TRANSFILE and copy file (not dir) reach here
     } else if(state == AWAITING_DATA){
 
-        /* Copy file / dir has two scenario 
+        /* Copy file / dir has two scenario
          * based on the type of file / dir
-         * -- REGFILE 
+         * -- REGFILE
          * ---- client opens file and writes to client socket
-         * ---- server reads and creates new file 
-         * -- REGDIR   
+         * ---- server reads and creates new file
+         * -- REGDIR
          * ---- client just have to wait for OK
-         * ---- server creates dir based on req alone 
+         * ---- server creates dir based on req alone
          */
 
         if(S_ISREG(req->mode)){
@@ -581,13 +580,13 @@ int read_req(struct client *cli){
  * Compare files based on client request (cli->client_req)
  * Sends res signal to client
  * SENDFILE
- * -- server_file does not exist 
- * -- server_file different in hash from client_file 
+ * -- server_file does not exist
+ * -- server_file different in hash from client_file
  * OK
- * -- server_file and client_file are identical 
- * ERROR 
+ * -- server_file and client_file are identical
+ * ERROR
  * -- file types are incompatible (i.e. file vs. directory)
- * Return 
+ * Return
  */
 int compare_file(struct client *cli){
 
@@ -605,7 +604,7 @@ int compare_file(struct client *cli){
         return -1;
     }
 
-    // Compare hash if file does exists 
+    // Compare hash if file does exists
     int compare = 0;
     if (server_file != NULL){
         char file_hash[BLOCKSIZE];
@@ -620,7 +619,7 @@ int compare_file(struct client *cli){
         //show_hash(file_hash);
     }
 
-    // Sends appropriate response 
+    // Sends appropriate response
     if (compare || server_file == NULL){
         response = SENDFILE;
     } else{
@@ -635,9 +634,9 @@ int compare_file(struct client *cli){
 
 
 /*
- * Makes directory given client request with given 
- * -- path 
- * -- permission 
+ * Makes directory given client request with given
+ * -- path
+ * -- permission
  * Return -1 on error and fd if success
  */
 int make_dir(struct client *cli){
@@ -662,12 +661,12 @@ int make_dir(struct client *cli){
 
 
 /*
- * Makes file given client request with given 
- * -- path 
- * -- permission 
- * Return 
- * -- -1 on error 
- * -- 0 if file copy not finished 
+ * Makes file given client request with given
+ * -- path
+ * -- permission
+ * Return
+ * -- -1 on error
+ * -- 0 if file copy not finished
  * -- fd if file copy finished
  * (i.e. file transfer over multiple select calls)
  */
@@ -684,9 +683,9 @@ int make_file(struct client *cli){
 
     // Open file for write, create file if not exist
     FILE *dest_f;
-    if((dest_f = fopen(req->path, "w+")) == NULL) {
+    if((dest_f = fopen(req->path, "a+")) == NULL) {
         perror("server:fopen");
-        return -1; 
+        return -1;
     }
 
     char buf[BUFSIZE];
@@ -699,17 +698,17 @@ int make_file(struct client *cli){
         return -1;
     } else if(num_read != BUFSIZE){
         nbytes = num_read;
-    } 
+    }
 
     num_wrote = fwrite(buf, 1, nbytes, dest_f);
     if(num_wrote != nbytes){
         if(ferror(dest_f)){
             fprintf(stderr, "server:fwrite error at [%s]\n", req->path);
             return -1;
-        } 
+        }
     }
 
-    // set permission 
+    // set permission
     if(chmod(req->path, perm) == -1){
         fprintf(stderr, "chmod: cannot set permission for [%s]\n", req->path);
     }
@@ -721,8 +720,8 @@ int make_file(struct client *cli){
         return -1;
     }
 
-    // copy is finished if read 
-    // -- is successful  
+    // copy is finished if read
+    // -- is successful
     // -- number of bytes read is not BUFSIZE
     if(nbytes != BUFSIZE){
         int response = OK;
