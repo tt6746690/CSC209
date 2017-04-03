@@ -137,23 +137,19 @@ void send_data(int fd, struct request *req){
     nbytes = BUFSIZE;
 
     while((num_read = fread(buffer, 1, BUFSIZE, f)) > 0){
-        printf("%s\n", buffer);
-        //printf("here\n");
-        // update nbytes when reached eof
-        // TODO: have to fix this for this is not working as intended...
-        nbytes = (eof_pos(buffer) == -1) ? BUFSIZE : nbytes;
-        /* if(feof(f) != 0){ */
-        /*     nbytes = eof_pos(buffer); */
-        /*     printf("%d \t finished copying\n", fd); */
-        /* } else if(ferror(f) != 0){ */
-        /*     fprintf(stderr, "fread error: %s", req->path); */
-        /* } */
+
+        if(ferror(f) != 0){
+            fprintf(stderr, "fread error: %s", req->path);
+        }
+
+        nbytes = (num_read == BUFSIZE) ? BUFSIZE : num_read;
+
+        /* printf("buf = [%s] num_read = [%d] nbytes = [%d]\n", buffer, num_read, nbytes); */
 
         if(write(fd, buffer, nbytes) == -1){
             perror("client:write");
             exit(1);
         }
-
     }
 
     if(fclose(f) != 0){
@@ -224,7 +220,7 @@ int traverse(const char *source, int sock_fd, char *host, unsigned short port){
              * ---- client just have to wait for OK
              * ---- server creates dir based on req alone
              */
-            printf("%d \t%d \t%d \t%s \t",
+            printf("\t\t\t\t\t\tc:%d \t%d \t%d \t%s \t",
                 getpid(), client_req.size,
                 client_req.mode, client_req.path);
             show_hash(client_req.hash);
@@ -242,7 +238,6 @@ int traverse(const char *source, int sock_fd, char *host, unsigned short port){
              * -- and exit with status of 1
              */
             num_read = read(child_sock_fd, &res, sizeof(int));
-            fprintf(stderr, "%d\n", num_read);
             if(num_read == -1){
                 perror("client:read");
                 exit(1);
@@ -333,11 +328,11 @@ void client_wait(int count){
                 fprintf(stderr, "client:wait return no status\n");
             } else if(WEXITSTATUS(status) == 0){
                 // TODO: remove this afterwards. here just for debugging..
-                fprintf(stdout, "pid = [%d] terminated with success"
-                        "status = [%d]\n", pid, WEXITSTATUS(status));
+                fprintf(stdout, "[%d] terminated "
+                        "with [%d] (success)\n", pid, WEXITSTATUS(status));
             } else if(WEXITSTATUS(status) == 1){
-                fprintf(stdout, "pid = [%d] terminated with error"
-                        "status = [%d]\n", pid, WEXITSTATUS(status));
+                fprintf(stdout, "[%d] terminated "
+                        "with [%d] (error)\n", pid, WEXITSTATUS(status));
             }
         }
     }

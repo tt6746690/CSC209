@@ -20,11 +20,11 @@ int rcopy_client(char *source, char *host, unsigned short port){
 
 
     printf("=== INFO ===\n");
-    fprintf(stdout, "req\t REGFILE=[1]\tREGDIR=[2]\tTRANSFILE=[3]\n");
-    fprintf(stdout, "res\t OK=[0]\tSENDFILE=[1]\tERROR=[2]\n");
-
-    printf("=== Tree traversal === \n");
-    printf("pid \tsock \ttype \tres \tpath\n");
+    printf("req\t REGFILE=[1]\tREGDIR=[2]\tTRANSFILE=[3]\n");
+    printf("res\t OK=[0] \tSENDFILE=[1]\tERROR=[2]\n");
+    printf("\n");
+    printf("=== Tree traversal ===\t\t\t\t === Wait for copy to finish === \n");
+    printf("pid \tsock \ttype \tres \tpath\t\t pid \tsize \tmode \tpath \thash\n");
 
     // tree traversal
     int child_count;
@@ -38,8 +38,6 @@ int rcopy_client(char *source, char *host, unsigned short port){
     if(child_count == -1){
         fprintf(stderr, "Error on traversal\n");
     } else if(child_count >= 0){
-        printf("=== Wait for copy to finish === \n");
-        printf("pid \tsize \tmode \tpath \thash\n");
         client_wait(child_count);
     }
 
