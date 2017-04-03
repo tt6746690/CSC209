@@ -65,6 +65,10 @@ void make_req(const char *path, struct request *req){
     } else{
         req->type = REGFILE;
     }
+    if (fclose(f) != 0){
+		perror("fclose");
+		exit(1);    
+    }
 }
 
 /*
@@ -77,7 +81,7 @@ void make_req(const char *path, struct request *req){
  * -- size
  */
 void send_req(int sock_fd, struct request *req){
-    if(write(sock_fd, &(req->type), sizeof(int)) == -1) {
+	 if(write(sock_fd, &(req->type), sizeof(int)) == -1) {
         perror("client:write");
         exit(1);
     }
@@ -141,7 +145,7 @@ void send_data(int fd, struct request *req){
         if(ferror(f) != 0){
             fprintf(stderr, "fread error: %s", req->path);
         }
-
+		  // TODO: Why not nbytes = num_read; 
         nbytes = (num_read == BUFSIZE) ? BUFSIZE : num_read;
 
         /* printf("buf = [%s] num_read = [%d] nbytes = [%d]\n", buffer, num_read, nbytes); */
@@ -220,10 +224,10 @@ int traverse(const char *source, int sock_fd, char *host, unsigned short port){
              * ---- client just have to wait for OK
              * ---- server creates dir based on req alone
              */
-            printf("\t\t\t\t\t\tc:%d \t%d \t%d \t%s \t",
+            /*printf("\t\t\t\t\t\tc:%d \t%d \t%d \t%s \t",
                 getpid(), client_req.size,
                 client_req.mode, client_req.path);
-            show_hash(client_req.hash);
+            show_hash(client_req.hash);*/
 
             if(file_type == REGFILE){
                 send_data(child_sock_fd, &client_req);
@@ -423,24 +427,28 @@ struct client *linkedlist_insert(struct client *head, int fd){
  * Delete client in head linked list with given fd
  * Return 0 if found and -1 if not found
  */
-int linkedlist_delete(struct client *head, int fd){
+struct client *linkedlist_delete(struct client **head_ptr, int fd){
 
     struct client *curr_ptr;
     struct client *prev_ptr = NULL;
 
-    for(curr_ptr = head->next; curr_ptr != NULL;
+    for(curr_ptr = *head_ptr; curr_ptr != NULL;
             prev_ptr = curr_ptr, curr_ptr = curr_ptr->next){
 
         if(curr_ptr->fd == fd){
 
-            if(prev_ptr == NULL){
-                head->next = curr_ptr->next;
-            } else{
+            if(prev_ptr == NULL){ //i.e. curr_ptr == head
+                //head->next = curr_ptr->next;
+					 *head_ptr = curr_ptr->next;					 
+					 free(*curr_ptr);                
+      			 //TODO check this carefully!
+            } else{            	 
                 prev_ptr->next = curr_ptr->next;
+                free(curr_ptr);
             }
 
-            free(curr_ptr);
-            return 0 ;
+            //free(curr_ptr);
+            return cur;
         }
 
     }
@@ -494,13 +502,16 @@ int read_req(struct client *cli){
             perror("server:read");
             return -1;
         }
+        // If the client socket closed
+        if (num_read == 0) return fd;
         cli->current_state = AWAITING_PATH;
     } else if(state == AWAITING_PATH){
         num_read = read(fd, req->path, MAXPATH);
         if (num_read == -1){
             perror("server:read");
             return -1;
-        }
+        } //TODO: combine two cases of return -1?
+        if (num_read == 0) return -1;
         cli->current_state = AWAITING_PERM;
     } else if(state == AWAITING_PERM){
 
@@ -509,6 +520,7 @@ int read_req(struct client *cli){
             perror("server:read");
             return -1;
         }
+        if (num_read == 0) return -1;
         cli->current_state = AWAITING_HASH;
     } else if(state == AWAITING_HASH){
 
@@ -517,6 +529,7 @@ int read_req(struct client *cli){
             perror("server:read");
             return -1;
         }
+        if (num_read == 0) return -1;
         cli->current_state = AWAITING_SIZE;
     } else if(state == AWAITING_SIZE){
 
@@ -525,6 +538,7 @@ int read_req(struct client *cli){
             perror("server:read");
             return -1;
         }
+        if (num_read == 0) return -1;
         /*
          * If request type is
          * TRANSFILE
@@ -536,7 +550,7 @@ int read_req(struct client *cli){
          */
         if(req->type == TRANSFILE){
             if(S_ISDIR(req->mode)){
-                printf("sock = [%d] is copying dir [%s]\n", fd, req->path);
+                //printf("sock = [%d] is copying dir [%s]\n", fd, req->path);
                 return make_dir(cli);
             }
             cli->current_state = AWAITING_DATA;
@@ -559,7 +573,7 @@ int read_req(struct client *cli){
          */
 
         if(S_ISREG(req->mode)){
-            printf("sock = [%d] is copying file [%s]\n", fd, req->path);
+            //printf("sock = [%d] is copying file [%s]\n", fd, req->path);
             return make_file(cli);
         } else if(S_ISDIR(req->mode)) {
             printf("should not get here!\n");
@@ -590,7 +604,7 @@ int compare_file(struct client *cli){
     struct request req = cli->client_req;
     int client_fd = cli->fd;
 
-    printf("%s\n", (cli->client_req).path);
+    //printf("%s\n", (cli->client_req).path);
 
     // Check if file exists on server
     FILE *server_file = fopen(req.path, "r");
@@ -603,7 +617,7 @@ int compare_file(struct client *cli){
     int compare = 0;
     if (server_file != NULL){
         char file_hash[BLOCKSIZE];
-        printf("%s exist on server\n", req.path);
+        //printf("%s exist on server\n", req.path);
         if (chmod(req.path, req.mode) == -1){
             perror("chmod");
             exit(1);
@@ -622,7 +636,7 @@ int compare_file(struct client *cli){
     }
 
     write(client_fd, &response, sizeof(int));
-    printf("%d \tres={%d} \t%d\n", client_fd, response, cli->current_state);
+    //printf("%d \tres={%d} \t%d\n", client_fd, response, cli->current_state);
 
     return 0;
 }
@@ -650,7 +664,7 @@ int make_dir(struct client *cli){
     response = OK;
     num_wrote = write(fd, &response, sizeof(int));
 
-    printf("[%s] (dir) copy finished\n", req->path);
+    //printf("[%s] (dir) copy finished\n", req->path);
     return fd;
 }
 
@@ -686,7 +700,7 @@ int make_file(struct client *cli){
     char buf[BUFSIZE];
     num_read = read(fd, buf, nbytes);
 
-    printf("read %d bytes into buffer = [%s]\n", num_read, buf);
+    //printf("read %d bytes into buffer = [%s]\n", num_read, buf);
 
     if(num_read == -1) {
         perror("server:read");
@@ -721,7 +735,7 @@ int make_file(struct client *cli){
     if(nbytes != BUFSIZE){
         int response = OK;
         num_wrote = write(fd, &response, sizeof(int));
-        printf("[%s] (file) copy finished\n", req->path);
+        //printf("[%s] (file) copy finished\n", req->path);
         return fd;
     }
 

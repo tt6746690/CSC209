@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <sys/stat.h>
 #include <dirent.h>
+#include <sys/wait.h>
 
 #include <netdb.h>
 #include <sys/socket.h>
