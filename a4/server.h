@@ -1,5 +1,9 @@
-#ifndef _H_FUNC_H_
-#define _H_FUNC_H_
+/*********
+ * SERVER
+ *********/
+
+#ifndef _SERVER_H_
+#define _SERVER_H_
 
 #include <unistd.h>
 #include <string.h>
@@ -8,7 +12,6 @@
 #include <sys/stat.h>
 #include <dirent.h>
 #include <sys/wait.h>
-
 #include <netdb.h>
 #include <sys/socket.h>
 
@@ -17,93 +20,24 @@
 
 #define BUFSIZE 256
 
-/*********
- * CLIENT
- *********/
-
-/* Create a new socket that connects to host
- * Waiting for a successful connection
- * Returns sock_fd and exits should error arises
- */
-int client_sock(char *host, unsigned short port);
-
-/* Construct client request for file/dir at path
- * request is modified to accomodate changes
- * exits process on error
- */
-void make_req(const char *path, struct request *client_req);
-
-/*
- * Sends request struct to sock_fd over 5 read calls
- * In order of
- * -- type
- * -- path
- * -- mode
- * -- hash
- * -- size
- */
-void send_req(int sock_fd, struct request *req);
-
-/*
- * Returns
- * -- position of EOF in a char array buffer
- * -- -1 if not found
- */
-int eof_pos(char *buffer);
-
-/*
- * precondition: req.st_mode yields regular file
- * Sends data specified by req by
- * -- open file at req.path
- * -- write to client socket where nbytes is
- * ---- BUFSIZE if eof is not reached
- * ---- position of EOF if eof is reached
- */
-void send_data(int fd, struct request *req);
-
-/*
- * Recursively traverses filepath rooted at source with sock_fd
- * Then for each file or directory
- * -- makes and sends request struct
- * -- waits for response from server
- * ---- OK: continue to next file
- * ---- SENDFILE:
- * ------ forks new process, main process continues to next file, child:
- * ------ initiate new connection with server w/e request.type = TRANSFILE
- * ------ makes and sends request struct
- * ------ transmit data from file
- * ------ waits for OK, close socket and exits, otherwise handles error
- * ----ERROR: print appropriate msg includes file name then exit(1)
- * Return
- * -- -1 for any error
- * -- 0 for success
- * -- >0 the number of child processes created
- */
-int traverse(const char *source, int sock_fd, char *host, unsigned short port);
-
-
-/*
- * The main client waits for count number of
- * child processes to terminate and report
- * -- nothing on success
- * -- error msg on error
- */
-void client_wait(int count);
-
-/*********
- * SERVER
- *********/
-
 /*
  * linked list for tracking mult read for sending request struct
  *
- * current_state is one of
- * -- AWAITING_TYPE 0
- * -- AWAITING_PATH 1
- * -- AWAITING_SIZE 2
- * -- AWAITING_PERM 3
- * -- AWAITING_HASH 4
- * -- AWAITING_DATA 5
+ * -- fd
+ * ---- client's file descriptor 
+ * -- current_state 
+ * ---- AWAITING_TYPE 0
+ * ---- AWAITING_PATH 1
+ * ---- AWAITING_SIZE 2
+ * ---- AWAITING_PERM 3
+ * ---- AWAITING_HASH 4
+ * ---- AWAITING_DATA 5
+ * -- file 
+ * ---- keeps stream open for copying files over multiple read calls
+ * -- request 
+ * ---- request sent from client 
+ * -- next 
+ * ---- pointer to the next client in the linked list
  */
 struct client {
     int fd;
@@ -191,7 +125,19 @@ int make_dir(struct client *cli);
  */
 int make_file(struct client *cli);
 
-//TODO Description
+/*
+ * Writes inputs from client socket to destination file
+ * on the server. 
+ * Precondition: client has a valid input file stream 
+ *      created using make_file
+ * Postcondition: input file stream is closed only when 
+ *      client has finished sending the file over 
+ * Return
+ * -- -1 on error
+ * -- 0 if file copy not finished
+ * -- fd if file copy finished
+ * (i.e. file transfer over multiple select calls)
+*/
 int write_file(struct client *cli);
 
-#endif // _H_FUNC_H_
+#endif // _SERVER_H_

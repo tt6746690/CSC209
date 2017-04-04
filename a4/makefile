@@ -1,14 +1,14 @@
 PORT=52945
 CFLAGS = -DPORT=$(PORT) -g -Wall -std=gnu99
-HEADERS = hash.h ftree.h h_func.h
+HEADERS = hash.h ftree.h client.h server.h
 
 
 all: rcopy_client rcopy_server
 
-rcopy_client: rcopy_client.o ftree.o hash_functions.o h_func.o
+rcopy_client: rcopy_client.o ftree.o hash_functions.o client.o server.o
 	gcc ${CFLAGS} -o $@ $^
 
-rcopy_server: rcopy_server.o ftree.o hash_functions.o h_func.o
+rcopy_server: rcopy_server.o ftree.o hash_functions.o client.o server.o
 	gcc ${CFLAGS} -o $@ $^
 
 

@@ -3,10 +3,10 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-#include "hash.h"
-#include "ftree.h"
+#include "server.h"
+#include "client.h"
 
-#include "h_func.h"
+#include "ftree.h"
 
 
 /*
@@ -70,9 +70,6 @@ void rcopy_server(unsigned short port){
     // head holds a linked list of client struct
     struct client *head = malloc(sizeof(struct client));
 
-
-    int stop = 40;
-
     while (1) {
         /* select updates the fd_set it receives,
          * so we always use a copy and retain the original.
@@ -96,14 +93,15 @@ void rcopy_server(unsigned short port){
                 continue;
             }
 
-            printf("%d \tcreate\t \n", client_fd);
-
             // update all_fds set
             max_fd = (client_fd > max_fd) ? client_fd : max_fd;
             FD_SET(client_fd, &all_fds);
 
             // keep track of new client in head
             linkedlist_insert(head, client_fd);
+
+            printf("add new client: %d\n", client_fd);
+            linkedlist_print(head);     // TODO: remove this later
         }
 
 
@@ -114,41 +112,40 @@ void rcopy_server(unsigned short port){
             if(FD_ISSET(p->fd, &listen_fds)){
 
                 int result = read_req(p);
-                 /* printf("Result : %d and fd : %d\n", result, p->fd); */
 
                 /*
                  * result is
-                 * -- fd if
-                 * ---- file transfer socket finish transfer file
-                 * ---- main socket finish traversing filepath (dunno how to check this)
+                 * -- fd
+                 * ---- remove fd from all_fds
+                 * ---- close fd
+                 * ---- remove client struct from linked list head
                  * -- 0 to continue reading req
                  * -- -1 if sys call fails
+                 * ---- report error properly
                  */
                 if(result == -1){
                     fprintf(stderr, "ERROR: file = [%s]\n", (p->client_req).path);
                     continue;
                 } else if(result == p->fd){
 
-                    printf("%d \tclosed \t\n", p->fd);
-
                     FD_CLR(p->fd, &all_fds);
-
                     if (close(p->fd) == -1){
                       perror("close socket");
                     }
-                    // re-assign pointer p
+
+                    /* re-assign pointer p since deletion 
+                     * invalidates pointers including 
+                     * and beyond the deleted element */
                     if((p = linkedlist_delete(head, p->fd)) == NULL){
                         fprintf(stderr, "server:linkedlist_delete");
                     }
 
-                } else{
-                    /* printf("%d \tcontinue \t%d\n", p->fd, p->current_state); */
-                }
+                } 
 
             }
         }
 
-        linkedlist_print(head);
+        linkedlist_print(head);     // TODO: remove this late
 
 
     }
