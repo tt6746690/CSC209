@@ -31,7 +31,8 @@ int client_sock(char *host, unsigned short port);
  * request is modified to accomodate changes
  * exits process on error
  */
-void make_req(const char *path, struct request *client_req);
+//void make_req(const char *path, struct request *client_req);
+void make_req(const char *path, const char *server_path, struct request *client_req);
 
 /*
  * Sends request struct to sock_fd over 5 read calls
@@ -52,7 +53,8 @@ void send_req(int sock_fd, struct request *req);
  * ---- BUFSIZE if eof is not reached
  * ---- position of EOF if eof is reached
  */
-void send_data(int fd, struct request *req);
+//void send_data(int fd, struct request *req);
+void send_data(int fd, const char *client_path, struct request *req);
 
 /*
  * Recursively traverses filepath rooted at source with sock_fd
@@ -72,7 +74,8 @@ void send_data(int fd, struct request *req);
  * -- 0 for success
  * -- >0 the number of child processes created
  */
-int traverse(const char *source, int sock_fd, char *host, unsigned short port);
+//int traverse(const char *source, int sock_fd, char *host, unsigned short port);
+int traverse(const char *source, const char *server_dest, int sock_fd, char *host, unsigned short port);
 
 /*
  * The main client waits for count number of

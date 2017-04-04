@@ -3,6 +3,7 @@
 
 #include "hash.h"
 #include <sys/stat.h> // NOTE: not included originally in the header file
+#include <libgen.h>
 
 #define MAXPATH 128
 #define MAXDATA 256

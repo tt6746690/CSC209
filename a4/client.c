@@ -41,16 +41,16 @@ int client_sock(char *host, unsigned short port){
  * request is modified to accomodate changes
  * exits process on error
  */
-void make_req(const char *path, struct request *req){
+void make_req(const char *client_path, const char *server_path, struct request *req){
 
     struct stat file_buf;
-    if (lstat(path, &file_buf)){
+    if (lstat(client_path, &file_buf)){
         perror("client:lstat");
         exit(1);
     }
-    strncpy(req->path, path, strlen(path) + 1);
+    strncpy(req->path, server_path, strlen(server_path) + 1);
     // Compute file hash
-    FILE *f = fopen(req->path,"r");
+    FILE *f = fopen(client_path,"r");
     if (f == NULL){
         perror("client:fopen");
         exit(1);
@@ -115,10 +115,11 @@ void send_req(int sock_fd, struct request *req){
  * ---- BUFSIZE if eof is not reached
  * ---- position of EOF if eof is reached
  */
-void send_data(int fd, struct request *req){
+void send_data(int fd, const char *client_path, struct request *req){
 
     FILE *f;
-    if((f = fopen(req->path, "r")) == NULL){
+    printf("%s", req->path);
+    if((f = fopen(client_path, "r")) == NULL){
         perror("client:open");
         exit(1);
     }
@@ -149,7 +150,7 @@ void send_data(int fd, struct request *req){
 }
 
 /*
- * Traverses filepath rooted at source with sock_fd
+ * Traverses filepath rooted at source (locally) with sock_fd
  * Then for each file or directory
  * -- makes and sends request struct
  * -- waits for response from server
@@ -166,12 +167,12 @@ void send_data(int fd, struct request *req){
  * -- 0 for success
  * -- >0 the number of child processes created
  */
-int traverse(const char *source, int sock_fd, char *host, unsigned short port){
+int traverse(const char *source, const char *server_dest, int sock_fd, char *host, unsigned short port){
     static int child_count = 0;
 
     // make & send request for source
     struct request client_req;
-    make_req(source, &client_req);
+    make_req(source, server_dest, &client_req);
     send_req(sock_fd, &client_req);
 
     // wait for response from server
@@ -210,7 +211,7 @@ int traverse(const char *source, int sock_fd, char *host, unsigned short port){
              */
 
             if(file_type == REGFILE){
-                send_data(child_sock_fd, &client_req);
+                send_data(child_sock_fd, source, &client_req);
             }
 
             /*
@@ -283,11 +284,16 @@ int traverse(const char *source, int sock_fd, char *host, unsigned short port){
 
                 // Compute "source/filename"
                 char src_path[MAXPATH];
+					 // Compute server_dest/filename                 
+                char server_path[MAXPATH];
                 strncpy(src_path, source, sizeof(src_path) - strlen(source) - 1);
                 strncat(src_path, "/", sizeof(src_path) - strlen("/") - 1);
                 strncat(src_path, dp->d_name, sizeof(src_path) - strlen(dp->d_name) - 1);
+					 strncpy(src_path, source, sizeof(src_path) - strlen(source) - 1);
+                strncat(src_path, "/", sizeof(src_path) - strlen("/") - 1);
+                strncat(src_path, dp->d_name, sizeof(src_path) - strlen(dp->d_name) - 1);
 
-                traverse(src_path, sock_fd, host, port);
+                traverse(src_path, server_path, sock_fd, host, port);
             }
         }
     }
