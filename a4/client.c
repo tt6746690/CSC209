@@ -83,8 +83,9 @@ void make_req(const char *client_path, const char *server_path, struct request *
  * -- size
  */
 void send_req(int sock_fd, struct request *req){
-	 int t = htonl(req->type);
-    if(write(sock_fd, &t, sizeof(int)) == -1) {
+	 //TODO : htonl ?	 
+	 //int t = htonl(req->type);
+    if(write(sock_fd, &(req->type), sizeof(int)) == -1) {
         perror("client:write");
         exit(1);
     }
@@ -92,8 +93,8 @@ void send_req(int sock_fd, struct request *req){
         perror("client:write");
         exit(1);
     }
-    mode_t m = htonl(req->mode);
-    if(write(sock_fd, &m, sizeof(mode_t)) == -1) {
+    //mode_t m = htonl(req->mode);
+    if(write(sock_fd, &(req->mode), sizeof(mode_t)) == -1) {
         perror("client:write");
         exit(1);
     }
@@ -101,8 +102,8 @@ void send_req(int sock_fd, struct request *req){
         perror("client:write");
         exit(1);
     }
-    int s = htonl(req->size);
-    if(write(sock_fd, &s, sizeof(size_t)) == -1) {
+    //int s = htonl(req->size);
+    if(write(sock_fd, &(req->size), sizeof(size_t)) == -1) {
         perror("client:write");
         exit(1);
     }
@@ -177,7 +178,9 @@ int traverse(const char *source, const char *server_dest, int sock_fd, char *hos
     struct request client_req;
     make_req(source, server_dest, &client_req);
     send_req(sock_fd, &client_req);
-
+	 
+    printf("SOURCE FILE : %s. \t DEST FILE LOC : %s\n", source, server_dest);	 
+	 
     // wait for response from server
     int res;
     int num_read = read(sock_fd, &res, sizeof(int));    //TODO: error check
@@ -230,7 +233,7 @@ int traverse(const char *source, const char *server_dest, int sock_fd, char *hos
                 perror("client:read");
                 exit(1);
             }
-            num_read = ntohl(num_read);
+            //num_read = ntohl(num_read);
 
             close(child_sock_fd);
 
@@ -294,9 +297,9 @@ int traverse(const char *source, const char *server_dest, int sock_fd, char *hos
                 strncpy(src_path, source, sizeof(src_path) - strlen(source) - 1);
                 strncat(src_path, "/", sizeof(src_path) - strlen("/") - 1);
                 strncat(src_path, dp->d_name, sizeof(src_path) - strlen(dp->d_name) - 1);
-					 strncpy(src_path, source, sizeof(src_path) - strlen(source) - 1);
-                strncat(src_path, "/", sizeof(src_path) - strlen("/") - 1);
-                strncat(src_path, dp->d_name, sizeof(src_path) - strlen(dp->d_name) - 1);
+					 strncpy(server_path, server_dest, sizeof(server_path) - strlen(server_dest) - 1);
+                strncat(server_path, "/", sizeof(server_path) - strlen("/") - 1);
+                strncat(server_path, dp->d_name, sizeof(server_path) - strlen(dp->d_name) - 1);
 
                 traverse(src_path, server_path, sock_fd, host, port);
             }

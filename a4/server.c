@@ -171,7 +171,7 @@ int read_req(struct client *cli){
         } else if (num_read == 0){    // close fd if client conenction closed
             return fd;
         }
-        req->type = ntohl(req->type);
+        //req->type = ntohl(req->type);
         cli->current_state = AWAITING_PATH;
     } else if(state == AWAITING_PATH){      // 1
         num_read = read(fd, req->path, MAXPATH);
@@ -191,7 +191,7 @@ int read_req(struct client *cli){
         } else if(num_read == 0){
             return -1;
         }
-        req->mode = ntohl(req->mode);        
+        //req->mode = ntohl(req->mode);        
         cli->current_state = AWAITING_HASH;
     } else if(state == AWAITING_HASH){      // 4
 
@@ -269,43 +269,66 @@ int read_req(struct client *cli){
  * Return
  */
 int compare_file(struct client *cli){
-
-    int response = 0;
-
+		
+    int response = ERROR;
     struct request req = cli->client_req;
     int client_fd = cli->fd;
+	 
+	 
+	 struct stat server_file_stat;
+	 if (lstat(req.path, &server_file_stat) != 0){
+		if (errno != ENOENT)	{	
+	 		perror("lstat");
+	 		exit(1);
+	 	} else {
+			response = SENDFILE; // File does't exist	 	
+	 	}
+	 }
+	 
+	 else { // FILE exists 
+	 	// Two different ways to mismatch
+	 	if (req.type == REGFILE && S_ISDIR(server_file_stat.st_mode)){
+	 		response = ERROR;
+	 	}
+	 	else if (req.type == REGDIR && S_ISREG(server_file_stat.st_mode)){
+	 		response = ERROR;
+	 	} else if (req.type == REGFILE){ // if both files (client/server) are regular files
+	 		FILE *server_file = fopen(req.path, "r");
+    		if (server_file == NULL && errno != ENOENT){ // TODO lstat checks if exists
+        		perror("fopen");
+        		return -1;
+    		}
 
-    //printf("%s\n", (cli->client_req).path);
-
-    // Check if file exists on server
-    FILE *server_file = fopen(req.path, "r");
-    if (server_file == NULL && errno != ENOENT){
-        perror("fopen");
-        return -1;
-    }
-
-    // Compare hash if file does exists
-    int compare = 0;
-    if (server_file != NULL){
-        char file_hash[BLOCKSIZE];
-        //printf("%s exist on server\n", req.path);
-        if (chmod(req.path, req.mode) == -1){
-            perror("chmod");
-            exit(1);
-        }
-        hash(file_hash, server_file);
-        compare = check_hash(req.hash, file_hash);
-        //show_hash(req.hash);
-        //show_hash(file_hash);
-    }
-
-    // Sends appropriate response
-    if (compare || server_file == NULL){
-        response = SENDFILE;
-    } else{
-        response = OK;
-    }
-    response = htonl(response);
+    		// Compare hash if file does exists
+    		int compare = 0;
+    		if (server_file != NULL){
+        		char file_hash[BLOCKSIZE];
+        		//printf("%s exist on server\n", req.path);
+        		
+        		hash(file_hash, server_file);
+        		compare = check_hash(req.hash, file_hash);
+        		//show_hash(req.hash);
+        		//show_hash(file_hash);
+    		}
+	 
+	 		if (compare || server_file == NULL)
+        		response = SENDFILE;
+    		else
+        		response = OK; // just need to update permissions
+    		
+			
+	 	} else { // If both files are directories
+	 		response = OK;
+	 	}
+	 	// Updates permissions regardless of response    		
+    	if (chmod(req.path, req.mode) == -1){
+      	perror("chmod");
+         exit(1);
+      }
+	 
+	 }
+	     	
+    //response = htonl(response);
     write(client_fd, &response, sizeof(int));
     //printf("%d \tres={%d} \t%d\n", client_fd, response, cli->current_state);
 
@@ -417,6 +440,7 @@ int write_file(struct client *cli){
     // copy is finished if read
     // -- is successful
     // -- number of bytes read is not BUFSIZE
+	 //TODO : ERROR check    
     if(nbytes != BUFSIZE || num_read == 0){
 
         if(fclose(cli->file) != 0){
@@ -425,7 +449,7 @@ int write_file(struct client *cli){
         }
 
         int response = OK;
-        response = htonl(response);
+        //response = htonl(response);
         num_wrote = write(fd, &response, sizeof(int));      // TODO: error checking
         printf("%s (file) copy finished\n", req->path);     // TODO: remove print later
         return fd;
