@@ -19,14 +19,14 @@ int rcopy_client(char *source, char *host, unsigned short port){
     sock_fd = client_sock(host, port);
 
 
-    /*printf("=== INFO ===\n");
+    printf("=== INFO ===\n");
     printf("req\t REGFILE=[1]\tREGDIR=[2]\tTRANSFILE=[3]\n");
     printf("res\t OK=[0] \tSENDFILE=[1]\tERROR=[2]\n");
     printf("\n");
     printf("=== Tree traversal ===\t\t\t\t "
-            "=== Wait for copy to finish === \n"); 
+            "=== Wait for copy to finish === \n");
     printf("pid \tsock \ttype \tres \tpath\t\t pid \tsize \tmode \tpath \thash\n");
-	 */
+
     // tree traversal
     int child_count;
     // TODO: basename? 
@@ -55,9 +55,9 @@ void rcopy_server(unsigned short port){
     int sock_fd;
     sock_fd = server_sock(port);
 
-    //printf("Server Starts listening on %d...\n", port);
-    //printf("=== ACCEPTING === \n");
-    //printf("sock\t activity \t state\n");
+    printf("Server Starts listening on %d...\n", port);
+    printf("=== ACCEPTING === \n");
+    printf("sock\t activity \t state\n");
 
 
     // initialize empty fd set for accept
@@ -71,7 +71,7 @@ void rcopy_server(unsigned short port){
     struct client *head = malloc(sizeof(struct client));
 
 
-    int stop = 30;
+    int stop = 40;
 
     while (stop--) {
         /* select updates the fd_set it receives,
@@ -96,7 +96,7 @@ void rcopy_server(unsigned short port){
                 continue;
             } 
 
-            printf("%d \tcreate\t\n", client_fd);
+            printf("%d \tcreate\t \n", client_fd);
 
             // update all_fds set 
             max_fd = (client_fd > max_fd) ? client_fd : max_fd;
@@ -125,20 +125,22 @@ void rcopy_server(unsigned short port){
                  * -- -1 if sys call fails
                  */
                 if(result == -1){
-                    fprintf(stderr, "ERROR: %s", (p->client_req).path);
+                    fprintf(stderr, "ERROR: file = [%s]\n", (p->client_req).path);
+                    continue;
                 } else if(result == p->fd){
 
+                    printf("%d \tclosed \t\n", p->fd);
+
                     FD_CLR(p->fd, &all_fds);
+                    close(p->fd);
 
                     // re-assign pointer p
                     if((p = linkedlist_delete(head, p->fd)) == NULL){
                         fprintf(stderr, "server:linkedlist_delete");
                     }
 
-                    printf("%d \tclosed \t\n", p->fd);
-
                 } else{
-                    printf("%d \tcontinue \t%d\n", p->fd, p->current_state);
+                    /* printf("%d \tcontinue \t%d\n", p->fd, p->current_state); */
                 }
 
             }
