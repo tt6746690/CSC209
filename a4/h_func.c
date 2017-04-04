@@ -31,7 +31,8 @@ int client_sock(char *host, unsigned short port){
 
     // Connect to server
     if (connect(sock_fd, (struct sockaddr *)&server, sizeof(server)) == -1) {
-        perror("client:connect"); close(sock_fd);
+        perror("client:connect"); 
+        close(sock_fd);
         exit(1);
     }
 
@@ -220,10 +221,6 @@ int traverse(const char *source, int sock_fd, char *host, unsigned short port){
              * ---- client just have to wait for OK
              * ---- server creates dir based on req alone
              */
-            printf("\t\t\t\t\t\tc:%d \t%d \t%d \t%s \t",
-                getpid(), client_req.size,
-                client_req.mode, client_req.path);
-            show_hash(client_req.hash);
 
             if(file_type == REGFILE){
                 send_data(child_sock_fd, &client_req);
@@ -247,6 +244,11 @@ int traverse(const char *source, int sock_fd, char *host, unsigned short port){
             printf("%d \t%d \t%d \t%d \t%s\n",
                     getpid(), child_sock_fd,
                     client_req.type, res, client_req.path);
+
+            printf("\t\t\t\t\t\tc:%d \t%d \t%d \t%s \t",
+                getpid(), client_req.size,
+                client_req.mode, client_req.path);
+            show_hash(client_req.hash);
 
             if(res == OK){
                 exit(0);
@@ -328,10 +330,10 @@ void client_wait(int count){
                 fprintf(stderr, "client:wait return no status\n");
             } else if(WEXITSTATUS(status) == 0){
                 // TODO: remove this afterwards. here just for debugging..
-                fprintf(stdout, "[%d] terminated "
+                fprintf(stdout, "\t\t\t\t\t\tf:%d \tterminated "
                         "with [%d] (success)\n", pid, WEXITSTATUS(status));
             } else if(WEXITSTATUS(status) == 1){
-                fprintf(stdout, "[%d] terminated "
+                fprintf(stdout, "\t\t\t\t\t\tf:%d \tterminated "
                         "with [%d] (error)\n", pid, WEXITSTATUS(status));
             }
         }

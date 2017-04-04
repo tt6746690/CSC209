@@ -25,7 +25,7 @@ server:
 
 client:
 	clear
-	./rcopy_client newfile localhost
+	./rcopy_client adir localhost
 
 debug:
 	chmod 777 sandbox && rm -r sandbox 

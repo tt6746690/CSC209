@@ -23,7 +23,8 @@ int rcopy_client(char *source, char *host, unsigned short port){
     printf("req\t REGFILE=[1]\tREGDIR=[2]\tTRANSFILE=[3]\n");
     printf("res\t OK=[0] \tSENDFILE=[1]\tERROR=[2]\n");
     printf("\n");
-    printf("=== Tree traversal ===\t\t\t\t === Wait for copy to finish === \n");
+    printf("=== Tree traversal ===\t\t\t\t "
+            "=== Wait for copy to finish === \n"); 
     printf("pid \tsock \ttype \tres \tpath\t\t pid \tsize \tmode \tpath \thash\n");
 
     // tree traversal
