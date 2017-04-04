@@ -83,9 +83,8 @@ void make_req(const char *client_path, const char *server_path, struct request *
  * -- size
  */
 void send_req(int sock_fd, struct request *req){
-	 //TODO : htonl ?	 
-	 //int t = htonl(req->type);
-    if(write(sock_fd, &(req->type), sizeof(int)) == -1) {
+	 int t = htonl(req->type);
+    if(write(sock_fd, &t, sizeof(int)) == -1) {
         perror("client:write");
         exit(1);
     }
@@ -93,8 +92,8 @@ void send_req(int sock_fd, struct request *req){
         perror("client:write");
         exit(1);
     }
-    //mode_t m = htonl(req->mode);
-    if(write(sock_fd, &(req->mode), sizeof(mode_t)) == -1) {
+    mode_t m = htonl(req->mode);
+    if(write(sock_fd, &m, sizeof(mode_t)) == -1) {
         perror("client:write");
         exit(1);
     }
@@ -102,8 +101,8 @@ void send_req(int sock_fd, struct request *req){
         perror("client:write");
         exit(1);
     }
-    //int s = htonl(req->size);
-    if(write(sock_fd, &(req->size), sizeof(size_t)) == -1) {
+    int s = htonl(req->size);
+    if(write(sock_fd, &s, sizeof(size_t)) == -1) {
         perror("client:write");
         exit(1);
     }
@@ -179,20 +178,17 @@ int traverse(const char *source, const char *server_dest, int sock_fd, char *hos
     make_req(source, server_dest, &client_req);
     send_req(sock_fd, &client_req);
 	 
-    printf("SOURCE FILE : %s. \t DEST FILE LOC : %s\n", source, server_dest);	 
-	 
     // wait for response from server
     int res;
     int num_read = read(sock_fd, &res, sizeof(int));    //TODO: error check
-
+	 res = ntohl(res);	
+	 
     printf("%d \t%d \t%d \t%d \t%s\n",                  // TODO: remove print later
             getpid(), sock_fd,
             client_req.type, res, client_req.path);
 
-
-    if (res == SENDFILE){
-
-        child_count++;
+	 if (res == SENDFILE){
+	    child_count++;
 
         int result = fork();
         if (result == 0){                // Child
@@ -233,7 +229,7 @@ int traverse(const char *source, const char *server_dest, int sock_fd, char *hos
                 perror("client:read");
                 exit(1);
             }
-            //num_read = ntohl(num_read);
+            num_read = ntohl(num_read);
 
             close(child_sock_fd);
 

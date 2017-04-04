@@ -171,7 +171,7 @@ int read_req(struct client *cli){
         } else if (num_read == 0){    // close fd if client conenction closed
             return fd;
         }
-        //req->type = ntohl(req->type);
+        req->type = ntohl(req->type);
         cli->current_state = AWAITING_PATH;
     } else if(state == AWAITING_PATH){      // 1
         num_read = read(fd, req->path, MAXPATH);
@@ -191,7 +191,7 @@ int read_req(struct client *cli){
         } else if(num_read == 0){
             return -1;
         }
-        //req->mode = ntohl(req->mode);        
+        req->mode = ntohl(req->mode);        
         cli->current_state = AWAITING_HASH;
     } else if(state == AWAITING_HASH){      // 4
 
@@ -212,6 +212,7 @@ int read_req(struct client *cli){
         } else if(num_read == 0){
             return -1;
         }
+        req->size = ntohl(req->size);        
         /*
          * If request type is
          * TRANSFILE
@@ -307,18 +308,19 @@ int compare_file(struct client *cli){
         		
         		hash(file_hash, server_file);
         		compare = check_hash(req.hash, file_hash);
-        		//show_hash(req.hash);
-        		//show_hash(file_hash);
+        		//printf("client hash : ");show_hash(req.hash);
+        		//printf("server hash: "); show_hash(file_hash);
+        		
     		}
 	 
 	 		if (compare || server_file == NULL)
         		response = SENDFILE;
     		else
-        		response = OK; // just need to update permissions
+        		response = OK; 
     		
 			
 	 	} else { // If both files are directories
-	 		response = OK;
+	 		response = OK;  // just need to update permissions
 	 	}
 	 	// Updates permissions regardless of response    		
     	if (chmod(req.path, req.mode) == -1){
@@ -328,7 +330,7 @@ int compare_file(struct client *cli){
 	 
 	 }
 	     	
-    //response = htonl(response);
+    response = htonl(response);
     write(client_fd, &response, sizeof(int));
     //printf("%d \tres={%d} \t%d\n", client_fd, response, cli->current_state);
 
@@ -449,7 +451,7 @@ int write_file(struct client *cli){
         }
 
         int response = OK;
-        //response = htonl(response);
+        response = htonl(response);
         num_wrote = write(fd, &response, sizeof(int));      // TODO: error checking
         printf("%s (file) copy finished\n", req->path);     // TODO: remove print later
         return fd;
