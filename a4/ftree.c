@@ -132,6 +132,7 @@ void rcopy_server(unsigned short port){
                     printf("%d \tclosed \t\n", p->fd);
 
                     FD_CLR(p->fd, &all_fds);
+
                     if (close(p->fd) == -1){
                       perror("close socket");
                     }
@@ -147,7 +148,7 @@ void rcopy_server(unsigned short port){
             }
         }
 
-        linkedlist_print(head);
+        //linkedlist_print(head);
 
 
     }
