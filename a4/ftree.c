@@ -30,10 +30,8 @@ int rcopy_client(char *source, char *host, unsigned short port){
     // tree traversal
     int child_count;
     // TODO: basename?
-    printf("ddddddddddddddddddddddd\n");
     char *base = basename(source); //EG: folder/test --> test
-	 printf("path %s, basename %s\n", source, base);    
-    child_count = traverse(source, base, sock_fd, host, port);
+	 child_count = traverse(source, base, sock_fd, host, port);
 
 
     // close main socket for tree traversal

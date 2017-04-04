@@ -83,7 +83,8 @@ void make_req(const char *client_path, const char *server_path, struct request *
  * -- size
  */
 void send_req(int sock_fd, struct request *req){
-    if(write(sock_fd, &(req->type), sizeof(int)) == -1) {
+	 int t = htonl(req->type);
+    if(write(sock_fd, &t, sizeof(int)) == -1) {
         perror("client:write");
         exit(1);
     }
@@ -91,7 +92,8 @@ void send_req(int sock_fd, struct request *req){
         perror("client:write");
         exit(1);
     }
-    if(write(sock_fd, &(req->mode), sizeof(mode_t)) == -1) {
+    mode_t m = req->mode;
+    if(write(sock_fd, &m, sizeof(mode_t)) == -1) {
         perror("client:write");
         exit(1);
     }
@@ -99,7 +101,8 @@ void send_req(int sock_fd, struct request *req){
         perror("client:write");
         exit(1);
     }
-    if(write(sock_fd, &(req->size), sizeof(size_t)) == -1) {
+    int s = &req->size;
+    if(write(sock_fd, &s, sizeof(size_t)) == -1) {
         perror("client:write");
         exit(1);
     }
@@ -223,10 +226,12 @@ int traverse(const char *source, const char *server_dest, int sock_fd, char *hos
              * -- and exit with status of 1
              */
             num_read = read(child_sock_fd, &res, sizeof(int));
-            if(num_read == -1){
+				if(num_read == -1){
                 perror("client:read");
                 exit(1);
             }
+            num_read = ntohl(num_read);            
+            
             close(child_sock_fd);
 
             printf("%d \t%d \t%d \t%d \t%s\n",          // TODO: remove print later

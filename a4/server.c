@@ -164,13 +164,14 @@ int read_req(struct client *cli){
     int fd = cli->fd;
 
     if(state == AWAITING_TYPE){             // 0
-        num_read = read(fd, &(req->type), sizeof(int));
+		  num_read = read(fd, &(req->type), sizeof(int));
         if (num_read == -1){
             perror("server:read");
             return -1;
         } else if (num_read == 0){    // close fd if client conenction closed
             return fd;
         }
+        req->type = ntohl(req->type);
         cli->current_state = AWAITING_PATH;
     } else if(state == AWAITING_PATH){      // 1
         num_read = read(fd, req->path, MAXPATH);
@@ -190,7 +191,7 @@ int read_req(struct client *cli){
         } else if(num_read == 0){
             return -1;
         }
-        if (num_read == 0) return -1;
+        req->mode = ntohl(req->mode);        
         cli->current_state = AWAITING_HASH;
     } else if(state == AWAITING_HASH){      // 4
 
@@ -304,6 +305,7 @@ int compare_file(struct client *cli){
     } else{
         response = OK;
     }
+    response = htonl(response);
     write(client_fd, &response, sizeof(int));
     //printf("%d \tres={%d} \t%d\n", client_fd, response, cli->current_state);
 
@@ -423,6 +425,7 @@ int write_file(struct client *cli){
         }
 
         int response = OK;
+        response = htonl(response);
         num_wrote = write(fd, &response, sizeof(int));      // TODO: error checking
         printf("%s (file) copy finished\n", req->path);     // TODO: remove print later
         return fd;
