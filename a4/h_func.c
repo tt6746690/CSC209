@@ -452,7 +452,7 @@ struct client *linkedlist_delete(struct client *head, int fd){
             }
 
             free(curr_ptr);
-            return prev_ptr;
+            return (prev_ptr == NULL) ? head : prev_ptr;
         }
 
     }

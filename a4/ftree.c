@@ -114,7 +114,8 @@ void rcopy_server(unsigned short port){
             if(FD_ISSET(p->fd, &listen_fds)){
 
                 int result = read_req(p); 
-					 printf("Result : %d and fd : %d\n", result, p->fd);
+                 /* printf("Result : %d and fd : %d\n", result, p->fd); */
+
                 /*
                  * result is 
                  * -- fd if
@@ -126,7 +127,7 @@ void rcopy_server(unsigned short port){
                 if(result == -1){
                     fprintf(stderr, "ERROR: %s", (p->client_req).path);
                 } else if(result == p->fd){
-						  printf("RRR");
+
                     FD_CLR(p->fd, &all_fds);
 
                     // re-assign pointer p
@@ -134,10 +135,10 @@ void rcopy_server(unsigned short port){
                         fprintf(stderr, "server:linkedlist_delete");
                     }
 
-                    //printf("%d \tclosed \t\n", p->fd);
+                    printf("%d \tclosed \t\n", p->fd);
 
                 } else{
-                    //printf("%d \tcontinue \t%d\n", p->fd, p->current_state);
+                    printf("%d \tcontinue \t%d\n", p->fd, p->current_state);
                 }
 
             }
