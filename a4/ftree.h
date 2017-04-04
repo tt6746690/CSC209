@@ -29,6 +29,8 @@
     #define PORT 30100
 #endif
 
+#define BUFSIZE 256
+
 struct request {
     int type;           // Request type is REGFILE, REGDIR, TRANSFILE
     char path[MAXPATH];

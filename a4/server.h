@@ -5,20 +5,16 @@
 #ifndef _SERVER_H_
 #define _SERVER_H_
 
-#include <unistd.h>
-#include <string.h>
-#include <errno.h>
-#include <stdlib.h>
-#include <sys/stat.h>
-#include <dirent.h>
-#include <sys/wait.h>
-#include <netdb.h>
-#include <sys/socket.h>
+#include <unistd.h>     // close read write
+#include <string.h>     // memset
+#include <errno.h>      // perror
+#include <stdlib.h>     // exit
+#include <sys/stat.h>   // stat 
+#include <netdb.h>      // sockaddr_in
 
 #include "hash.h"       // hash()
 #include "ftree.h"      // request stuct
 
-#define BUFSIZE 256
 
 /*
  * linked list for tracking mult read for sending request struct
