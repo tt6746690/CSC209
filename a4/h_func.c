@@ -501,6 +501,7 @@ int read_req(struct client *cli){
     int fd = cli->fd;
 
     if(state == AWAITING_TYPE){
+        cli->file = NULL; // TODO: there's probably a better place for this
         num_read = read(fd, &(req->type), sizeof(int));
         if (num_read == -1){
             perror("server:read");
@@ -578,7 +579,10 @@ int read_req(struct client *cli){
 
         if(S_ISREG(req->mode)){
             //printf("sock = [%d] is copying file [%s]\n", fd, req->path);
-            return make_file(cli);
+            if (cli->file == NULL)
+              return make_file(cli);
+            else
+              return write_file(cli);
         } else if(S_ISDIR(req->mode)) {
             printf("should not get here!\n");
         }
@@ -628,7 +632,7 @@ int compare_file(struct client *cli){
         }
         hash(file_hash, server_file);
         compare = check_hash(req.hash, file_hash);
-        //show_hash(new_request.hash);
+        //show_hash(req.hash);
         //show_hash(file_hash);
     }
 
@@ -638,7 +642,6 @@ int compare_file(struct client *cli){
     } else{
         response = OK;
     }
-
     write(client_fd, &response, sizeof(int));
     //printf("%d \tres={%d} \t%d\n", client_fd, response, cli->current_state);
 
@@ -693,14 +696,27 @@ int make_file(struct client *cli){
     int nbytes = BUFSIZE;
     int num_read;
     int num_wrote;
-
     // Open file for write, create file if not exist
-    FILE *dest_f;
-    if((dest_f = fopen(req->path, "a+")) == NULL) {
+    //FILE *dest_f;
+    if((cli->file = fopen(req->path, "w+")) == NULL) {
         perror("server:fopen");
         return -1;
     }
+    // set permission
+    if(chmod(req->path, perm) == -1){
+        fprintf(stderr, "chmod: cannot set permission for [%s]\n", req->path);
+    }
+    return 0;
 
+}
+
+int write_file(struct client *cli){
+  struct request *req = &(cli->client_req);
+  int fd = cli->fd;
+
+  int nbytes = BUFSIZE;
+  int num_read;
+  int num_wrote;
     char buf[BUFSIZE];
     num_read = read(fd, buf, nbytes);
 
@@ -713,31 +729,24 @@ int make_file(struct client *cli){
         nbytes = num_read;
     }
 
-    num_wrote = fwrite(buf, 1, nbytes, dest_f);
+    num_wrote = fwrite(buf, 1, nbytes, cli->file);
     if(num_wrote != nbytes){
-        if(ferror(dest_f)){
+        if(ferror(cli->file)){
             fprintf(stderr, "server:fwrite error at [%s]\n", req->path);
             return -1;
         }
     }
 
-    // set permission
-    if(chmod(req->path, perm) == -1){
-        fprintf(stderr, "chmod: cannot set permission for [%s]\n", req->path);
-    }
-
-
-    // close FILE *
-    if(fclose(dest_f) != 0){
-        perror("server:fclose");
-        return -1;
-    }
 
     // copy is finished if read
     // -- is successful
     // -- number of bytes read is not BUFSIZE
-    if(nbytes != BUFSIZE){
+    if(nbytes != BUFSIZE || num_read == 0){
         int response = OK;
+        if(fclose(cli->file) != 0){
+          perror("server:fclose");
+          return -1;
+        }
         num_wrote = write(fd, &response, sizeof(int));
         //printf("[%s] (file) copy finished\n", req->path);
         return fd;
