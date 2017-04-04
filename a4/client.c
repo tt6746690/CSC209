@@ -1,4 +1,4 @@
-#include <stdio.h> 
+#include <stdio.h>
 
 #include "client.h"
 
@@ -92,7 +92,7 @@ void send_req(int sock_fd, struct request *req){
         perror("client:write");
         exit(1);
     }
-    mode_t m = req->mode;
+    mode_t m = htonl(req->mode);
     if(write(sock_fd, &m, sizeof(mode_t)) == -1) {
         perror("client:write");
         exit(1);
@@ -101,7 +101,7 @@ void send_req(int sock_fd, struct request *req){
         perror("client:write");
         exit(1);
     }
-    int s = &req->size;
+    int s = htonl(req->size);
     if(write(sock_fd, &s, sizeof(size_t)) == -1) {
         perror("client:write");
         exit(1);
@@ -230,8 +230,8 @@ int traverse(const char *source, const char *server_dest, int sock_fd, char *hos
                 perror("client:read");
                 exit(1);
             }
-            num_read = ntohl(num_read);            
-            
+            num_read = ntohl(num_read);
+
             close(child_sock_fd);
 
             printf("%d \t%d \t%d \t%d \t%s\n",          // TODO: remove print later
@@ -289,7 +289,7 @@ int traverse(const char *source, const char *server_dest, int sock_fd, char *hos
 
                 // Compute "source/filename"
                 char src_path[MAXPATH];
-					 // Compute server_dest/filename                 
+					 // Compute server_dest/filename
                 char server_path[MAXPATH];
                 strncpy(src_path, source, sizeof(src_path) - strlen(source) - 1);
                 strncat(src_path, "/", sizeof(src_path) - strlen("/") - 1);
