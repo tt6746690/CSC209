@@ -128,7 +128,9 @@ void rcopy_server(unsigned short port){
                 } else if(result == p->fd){
 						  printf("RRR");
                     FD_CLR(p->fd, &all_fds);
-                    if(linkedlist_delete(head, p->fd) == -1){
+
+                    // re-assign pointer p
+                    if((p = linkedlist_delete(head, p->fd)) == NULL){
                         fprintf(stderr, "server:linkedlist_delete");
                     }
 
@@ -141,7 +143,7 @@ void rcopy_server(unsigned short port){
             }
         }
 
-        /* linkedlist_print(head); */
+        linkedlist_print(head);
 
 
     }

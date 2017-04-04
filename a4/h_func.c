@@ -432,37 +432,34 @@ struct client *linkedlist_insert(struct client *head, int fd){
 
 /*
  * Delete client in head linked list with given fd
- * Return 0 if found and -1 if not found
+ * Return element before deleted item if found; NULL otherwise
  */
-struct client *linkedlist_delete(struct client **head_ptr, int fd){
+struct client *linkedlist_delete(struct client *head, int fd){
 
     struct client *curr_ptr;
     struct client *prev_ptr = NULL;
 
-    for(curr_ptr = *head_ptr; curr_ptr != NULL;
+    for(curr_ptr = head->next; curr_ptr != NULL;
             prev_ptr = curr_ptr, curr_ptr = curr_ptr->next){
 
         if(curr_ptr->fd == fd){
 
-            if(prev_ptr == NULL){ //i.e. curr_ptr == head
-                //head->next = curr_ptr->next;
-					 *head_ptr = curr_ptr->next;
-					 free(*curr_ptr);
-      			 //TODO check this carefully!
+            if(prev_ptr == NULL){
+                head->next = curr_ptr->next;
+
             } else{
                 prev_ptr->next = curr_ptr->next;
-                free(curr_ptr);
             }
 
-            //free(curr_ptr);
-            return cur;
+            free(curr_ptr);
+            return prev_ptr;
         }
 
     }
-    return -1;
+    return NULL;
+
 
 }
-
 
 /*
  * Print linked list at head

@@ -121,9 +121,9 @@ struct client *linkedlist_insert(struct client *head, int fd);
 
 /*
  * Delete client in head linked list with given fd
- * Return 0 if found and -1 if not found
+ * Return element before deleted item if found; NULL otherwise
  */
-int linkedlist_delete(struct client *head, int fd);
+struct client *linkedlist_delete(struct client *head, int fd);
 
 /*
  * Print linked list at head 
