@@ -132,14 +132,10 @@ void rcopy_server(unsigned short port){
                     printf("%d \tclosed \t\n", p->fd);
 
                     FD_CLR(p->fd, &all_fds);
-<<<<<<< HEAD
-                    close(p->fd);
 
-=======
                     if (close(p->fd) == -1){
                       perror("close socket");
                     }
->>>>>>> 8e2d38d5f434909ef03bd58ea45f219a4ab23934
                     // re-assign pointer p
                     if((p = linkedlist_delete(head, p->fd)) == NULL){
                         fprintf(stderr, "server:linkedlist_delete");
