@@ -133,20 +133,19 @@ void rcopy_server(unsigned short port){
                       perror("close socket");
                     }
 
-                    /* re-assign pointer p since deletion 
-                     * invalidates pointers including 
+                    /* re-assign pointer p since deletion
+                     * invalidates pointers including
                      * and beyond the deleted element */
                     if((p = linkedlist_delete(head, p->fd)) == NULL){
                         fprintf(stderr, "server:linkedlist_delete");
                     }
 
-                } 
+                }
 
             }
         }
 
         linkedlist_print(head);     // TODO: remove this late
-
 
     }
 }
