@@ -14,7 +14,7 @@
  */
 int rcopy_client(char *source, char *host, unsigned short port){
 
-    // main socket for tree traversal 
+    // main socket for tree traversal
     int sock_fd;
     sock_fd = client_sock(host, port);
 
@@ -29,7 +29,7 @@ int rcopy_client(char *source, char *host, unsigned short port){
 
     // tree traversal
     int child_count;
-    // TODO: basename? 
+    // TODO: basename?
     child_count = traverse(source, sock_fd, host, port);
 
 
@@ -48,7 +48,7 @@ int rcopy_client(char *source, char *host, unsigned short port){
 
 
 /*
- * Server handles incoming connection 
+ * Server handles incoming connection
  */
 void rcopy_server(unsigned short port){
 
@@ -67,13 +67,13 @@ void rcopy_server(unsigned short port){
     FD_ZERO(&all_fds);
     FD_SET(sock_fd, &all_fds);
 
-    // head holds a linked list of client struct 
+    // head holds a linked list of client struct
     struct client *head = malloc(sizeof(struct client));
 
 
     int stop = 40;
 
-    while (stop--) {
+    while (1) {
         /* select updates the fd_set it receives,
          * so we always use a copy and retain the original.
          */
@@ -86,19 +86,19 @@ void rcopy_server(unsigned short port){
         }
 
         /* On active server socket, accept incoming client connection
-         * Every new client occupies one node in linked list 
+         * Every new client occupies one node in linked list
          */
         if (FD_ISSET(sock_fd, &listen_fds)) {
 
-            int client_fd; 
+            int client_fd;
             if ((client_fd = accept(sock_fd, NULL, NULL)) == -1) {
                 perror("server: accept");
                 continue;
-            } 
+            }
 
             printf("%d \tcreate\t \n", client_fd);
 
-            // update all_fds set 
+            // update all_fds set
             max_fd = (client_fd > max_fd) ? client_fd : max_fd;
             FD_SET(client_fd, &all_fds);
 
@@ -113,15 +113,15 @@ void rcopy_server(unsigned short port){
         for(struct client*p = head->next; p != NULL; p = p->next){
             if(FD_ISSET(p->fd, &listen_fds)){
 
-                int result = read_req(p); 
+                int result = read_req(p);
                  /* printf("Result : %d and fd : %d\n", result, p->fd); */
 
                 /*
-                 * result is 
+                 * result is
                  * -- fd if
-                 * ---- file transfer socket finish transfer file 
+                 * ---- file transfer socket finish transfer file
                  * ---- main socket finish traversing filepath (dunno how to check this)
-                 * -- 0 to continue reading req  
+                 * -- 0 to continue reading req
                  * -- -1 if sys call fails
                  */
                 if(result == -1){
@@ -132,8 +132,14 @@ void rcopy_server(unsigned short port){
                     printf("%d \tclosed \t\n", p->fd);
 
                     FD_CLR(p->fd, &all_fds);
+<<<<<<< HEAD
                     close(p->fd);
 
+=======
+                    if (close(p->fd) == -1){
+                      perror("close socket");
+                    }
+>>>>>>> 8e2d38d5f434909ef03bd58ea45f219a4ab23934
                     // re-assign pointer p
                     if((p = linkedlist_delete(head, p->fd)) == NULL){
                         fprintf(stderr, "server:linkedlist_delete");
@@ -151,5 +157,3 @@ void rcopy_server(unsigned short port){
 
     }
 }
-
-
