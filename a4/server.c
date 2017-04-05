@@ -382,6 +382,10 @@ int make_dir(struct client *cli){
     int num_wrote, response;
     response = OK;
     num_wrote = write(fd, &response, sizeof(int));
+    if(num_wrote == -1){
+        perror("write");
+        return -1;
+    }
 
     return fd;
 }

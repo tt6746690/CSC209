@@ -148,8 +148,6 @@ int send_data(int fd, const char *client_path, struct request *req){
             return -1;
         }
 
-        /* printf("buf = [%s] num_read = [%d] nbytes = [%d]\n", buffer, num_read, nbytes); */ // TODO: remove print
-
         if(write(fd, buffer, num_read) == -1){
             perror("client:write");
             return -1;
@@ -257,7 +255,7 @@ int traverse(const char *source, const char *server_dest, int sock_fd, char *hos
 
             close(child_sock_fd);
 
-            /* printf("%d \t%d \t%d \t%d \t%s\n",          TODO: remove print later */
+            /* printf("%d \t%d \t%d \t%d \t%s\n",          TODO: debugging purposes
             /*         getpid(), child_sock_fd, */
             /*         client_req.type, res, client_req.path); */
             /*  */
