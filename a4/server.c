@@ -445,6 +445,7 @@ int write_file(struct client *cli){
     int num_read, num_wrote;
     char buf[BUFSIZE];
 
+	 // TODO: how do we know this is okay to do?
     num_read = read(fd, buf, nbytes);
 
     if(num_read == -1) {

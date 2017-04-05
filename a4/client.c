@@ -131,20 +131,21 @@ int send_req(int sock_fd, struct request *req){
  * Return 0 if success otherwise -1
  */
 int send_data(int fd, const char *client_path, struct request *req){
-
+	 printf("Here I'm about to open a file\n");
     FILE *f;
     if((f = fopen(client_path, "r")) == NULL){
         perror("client:open");
         return -1;
     }
-
+	 printf("I opened an empty file\n");
     int num_read;
     char buffer[BUFSIZE];
 
     while((num_read = fread(buffer, 1, BUFSIZE, f)) > 0){
-
+		   
         if(ferror(f) != 0){
-            fprintf(stderr, "fread error: %s", req->path);
+            fprintf(stderr, "fread error: %s", req->path);          
+				//fclose(f);	            
             return -1;
         }
 
@@ -212,14 +213,15 @@ int traverse(const char *source, const char *server_dest, int sock_fd, char *hos
             // Create a new socket for child process
             int child_sock_fd = client_sock(host, port);        
             if (child_sock_fd == -1){
-                return -1;
+                exit(1);
             }
 
             // Sending request
             int file_type = client_req.type;
             client_req.type = TRANSFILE;
             if (send_req(child_sock_fd, &client_req) == -1){
-                return -1;
+					 close(child_sock_fd);                
+                exit(1);
             }
 
             /* Copy file / dir has two scenario
@@ -234,7 +236,8 @@ int traverse(const char *source, const char *server_dest, int sock_fd, char *hos
             if(file_type == REGFILE){
                 int sent = send_data(child_sock_fd, source, &client_req); 
                 if(sent == -1){
-                    return -1;
+                	  close(child_sock_fd);
+                    exit(1);
                 }
             }
 
@@ -249,7 +252,8 @@ int traverse(const char *source, const char *server_dest, int sock_fd, char *hos
             num_read = read(child_sock_fd, &res, sizeof(int));
             if(num_read != sizeof(int)){
                 perror("client:read");
-                return -1;
+                close(child_sock_fd);
+                exit(1);
             }
             res = ntohl(res);     
 
@@ -351,7 +355,7 @@ int client_wait(){
             } else if(WEXITSTATUS(status) == 1){
                 fprintf(stderr, "\t\t\t\t\t\tf:%d \tterminated "
                         "with [%d] (error)\n", pid, WEXITSTATUS(status));
-                return -1;
+                //return -1;
             }
         }
     }
