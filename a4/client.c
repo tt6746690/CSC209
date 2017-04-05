@@ -116,11 +116,6 @@ int send_req(int sock_fd, struct request *req){
         perror("client:write");
         return -1;
     }
-    //TODO: rmeove later
-    /* printf("type:orig=%d, net=%d, host=%d\n", req->type, htonl(req->type), htonl(ntohl(req->type))); */
-    /* printf("mode:orig=%d, net=%d, host=%d\n", req->mode, htonl(req->mode), htonl(ntohl(req->mode))); */
-    /* printf("size:orig=%d, net=%d, host=%d\n", req->size, htonl(req->size), htonl(ntohl(req->size))); */
-    /* printf("req:orig=%d, net=%d, host=%d\n", req->size, htonl(req->size), htonl(ntohl(req->size))); */
     return 0;
 }
 
@@ -138,7 +133,6 @@ int send_req(int sock_fd, struct request *req){
 int send_data(int fd, const char *client_path, struct request *req){
 
     FILE *f;
-    printf("%s", req->path);
     if((f = fopen(client_path, "r")) == NULL){
         perror("client:open");
         return -1;
@@ -209,10 +203,6 @@ int traverse(const char *source, const char *server_dest, int sock_fd, char *hos
     }
     res = ntohl(res);
 
-    printf("%d \t%d \t%d \t%d \t%s \t %s\n",                  // TODO: remove print later
-            getpid(), sock_fd,
-            client_req.type, res, client_req.path, server_dest);
-
 
     // handles server response
     if (res == SENDFILE){
@@ -267,20 +257,20 @@ int traverse(const char *source, const char *server_dest, int sock_fd, char *hos
 
             close(child_sock_fd);
 
-            printf("%d \t%d \t%d \t%d \t%s\n",          // TODO: remove print later
-                    getpid(), child_sock_fd,
-                    client_req.type, res, client_req.path);
-
-            printf("\t\t\t\t\t\tc:%d \t%d \t%d \t%s \t",
-                    getpid(), client_req.size,
-                    client_req.mode, client_req.path);
-            show_hash(client_req.hash);
+            /* printf("%d \t%d \t%d \t%d \t%s\n",          TODO: remove print later */
+            /*         getpid(), child_sock_fd, */
+            /*         client_req.type, res, client_req.path); */
+            /*  */
+            /* printf("\t\t\t\t\t\tc:%d \t%d \t%d \t%s \t", */
+            /*         getpid(), client_req.size, */
+            /*         client_req.mode, client_req.path); */
+            /* show_hash(client_req.hash); */
 
             if(res == OK){
                 exit(0);
             } else if (res == ERROR){
-                fprintf(stderr, "client: sock [%d] at [%s] receives "
-                        "ERROR from server\n", child_sock_fd, source);
+                fprintf(stderr, "client: file [%s] received "
+                        "ERROR from server\n", source);
             } 
             exit(1);
 
@@ -316,7 +306,6 @@ int traverse(const char *source, const char *server_dest, int sock_fd, char *hos
         while ((dp = readdir(dirp)) != NULL){     // traverse dirp
             if ((dp->d_name)[0] != '.'){          // avoid dot files
 
-
                 // Compute "source/filename"
                 char src_path[MAXPATH];
                 // Compute server_dest/filename
@@ -347,7 +336,6 @@ int traverse(const char *source, const char *server_dest, int sock_fd, char *hos
  * Return 0 if success -1 otherwise
  */
 int client_wait(){
-    printf("count=%d", CHILD_COUNT);
 
     while(CHILD_COUNT-- != 0){
         pid_t pid;
@@ -360,11 +348,10 @@ int client_wait(){
             if(!WIFEXITED(status)){
                 fprintf(stderr, "client:wait return no status\n");
             } else if(WEXITSTATUS(status) == 0){
-                // TODO: remove this afterwards. here just for debugging..
-                fprintf(stdout, "\t\t\t\t\t\tf:%d \tterminated "
-                        "with [%d] (success)\n", pid, WEXITSTATUS(status));
+                /* fprintf(stdout, "\t\t\t\t\t\tf:%d \tterminated " */
+                /*         "with [%d] (success)\n", pid, WEXITSTATUS(status)); */
             } else if(WEXITSTATUS(status) == 1){
-                fprintf(stdout, "\t\t\t\t\t\tf:%d \tterminated "
+                fprintf(stderr, "\t\t\t\t\t\tf:%d \tterminated "
                         "with [%d] (error)\n", pid, WEXITSTATUS(status));
                 return -1;
             }

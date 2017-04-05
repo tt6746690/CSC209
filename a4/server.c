@@ -236,10 +236,17 @@ int read_req(struct client *cli){
             cli->current_state = AWAITING_DATA;
         } else{
 
-            int response = htonl(compare_file(cli));
-            write(fd, &response, sizeof(int));
+            int compared, response;
+            compared = compare_file(cli);
+            response = htonl(compared);
 
+            write(fd, &response, sizeof(int));
             cli->current_state = AWAITING_TYPE;
+
+            if(compared == ERROR){
+                return -1;
+            }
+
         }
     } else if(state == AWAITING_DATA){          // 5
 
@@ -257,11 +264,9 @@ int read_req(struct client *cli){
             else
                 return write_file(cli);
         } else if(S_ISDIR(req->mode)) {
-            // Only type=TRANSFILE and copy file (not dir) reach here
             return -1;
         }
 
-        return 0;
     }
 
     return 0;
@@ -305,9 +310,11 @@ int compare_file(struct client *cli){
          * -- file on server and directory on client
          */
         if (req.type == REGFILE && S_ISDIR(server_file_stat.st_mode)){
+            fprintf(stderr, "File Missmatch\n");
             return ERROR;
         }
         else if (req.type == REGDIR && S_ISREG(server_file_stat.st_mode)){
+            fprintf(stderr, "File Missmatch\n");
             return ERROR;
         } 
         /*
@@ -324,7 +331,7 @@ int compare_file(struct client *cli){
             FILE *server_file = fopen(req.path, "r");
             if (server_file == NULL){ 
                 perror("fopen");
-                return ERROR;       // TODO: cannot be ENOENT so have to report error here
+                return ERROR;       
             }
 
             int compare = 0;
@@ -333,16 +340,17 @@ int compare_file(struct client *cli){
 
                 hash(file_hash, server_file);
                 compare = check_hash(req.hash, file_hash);
-                //printf("client hash : ");show_hash(req.hash);     // TODO: remove print
-                //printf("server hash: "); show_hash(file_hash);
-                //
+
                 if(compare){
-                    printf("hash different \n");
                     return SENDFILE;
                 }
             }
         } 
 
+        /*
+         * Update file permission only if file type 
+         * are the same on client & server
+         */
         if(chmod(req.path, req.mode) == -1){
             perror("chmod");
             return ERROR;
@@ -375,7 +383,6 @@ int make_dir(struct client *cli){
     response = OK;
     num_wrote = write(fd, &response, sizeof(int));
 
-    printf("\t\t\t\t\t[%s] (dir) copy finished\n", req->path);
     return fd;
 }
 
@@ -405,6 +412,7 @@ int make_file(struct client *cli){
     // set permission
     if(chmod(req->path, perm) == -1){
         fprintf(stderr, "chmod: cannot set permission for [%s]\n", req->path);
+        return -1;
     }
 
     return 0;
@@ -446,13 +454,10 @@ int write_file(struct client *cli){
 
     if(num_wrote != nbytes){
         if(ferror(cli->file)){
-            fprintf(stderr, "server:fwrite error at [%s]\n", req->path);
+            fprintf(stderr, "server:fwrite error for [%s]\n", req->path);
             return -1;
         }
     }
-
-    // TODO: remove print lateer
-    printf("%s <- %d bytes of [%s]\n", req->path, num_read, buf);
 
     // copy is finished if read
     // -- is successful
@@ -467,13 +472,12 @@ int write_file(struct client *cli){
         int response;
         response = htonl(OK);
 
-        num_wrote = write(fd, &response, sizeof(int));      // TODO: error checking
+        num_wrote = write(fd, &response, sizeof(int));      
         if(num_wrote == -1){
             perror("server:write");
             return -1;
         }
 
-        printf("%s (file) copy finished\n", req->path);     // TODO: remove print later
         return fd;
     }
 

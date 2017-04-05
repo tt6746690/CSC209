@@ -11,6 +11,7 @@
 
 /*
  * Takes the file tree rooted at source, and copies transfers it to host
+ * Return 0 for success and 1 otherwise
  */
 int rcopy_client(char *source, char *host, unsigned short port){
 
@@ -18,16 +19,12 @@ int rcopy_client(char *source, char *host, unsigned short port){
     int sock_fd;
     sock_fd = client_sock(host, port);
     if (sock_fd == -1){
-      return -1;
+      return 1;
     }
 
-    printf("=== INFO ===\n");
-    printf("req\t REGFILE=[1]\tREGDIR=[2]\tTRANSFILE=[3]\n");
-    printf("res\t OK=[0] \tSENDFILE=[1] \tERROR=[2]\n");
-    printf("\n");
-    printf("=== Tree traversal ===\t\t\t\t "
-            "=== Wait for copy to finish === \n");
-    printf("pid \tsock \ttype \tres \tpath\t\t pid \tsize \tmode \tpath \thash\n");
+    /* printf("=== Tree traversal ===\t\t\t\t " */
+    /*         "=== Wait for copy to finish === \n"); */
+    /* printf("pid \tsock \ttype \tres \tpath\t\t pid \tsize \tmode \tpath \thash\n"); */
 
     // tree traversal
     /* int child_count; */
@@ -36,11 +33,17 @@ int rcopy_client(char *source, char *host, unsigned short port){
     char *base = basename(source);      
 
     traversed = traverse(source, base, sock_fd, host, port);
-    close(sock_fd);
+    if(traversed == -1){
+        fprintf(stderr, "client: traversal failed\n");
+    }
 
+    close(sock_fd);
     waited = client_wait();
 
-    return traversed || waited;
+    if(traversed == -1 || waited == -1){
+        return 1;
+    }
+    return 0;
 }
 
 
@@ -51,10 +54,7 @@ void rcopy_server(unsigned short port){
 
     int sock_fd;
     sock_fd = server_sock(port);
-
     printf("Server Starts listening on %d...\n", port);
-    printf("=== ACCEPTING === \n");
-    printf("sock\t activity \t state\n");
 
 
     // initialize empty fd set for accept
@@ -66,7 +66,6 @@ void rcopy_server(unsigned short port){
 
     // head holds a linked list of client struct
     struct client *head = malloc(sizeof(struct client));
-
 
     /*
      * An infinity loop where errors are reported 
@@ -104,8 +103,7 @@ void rcopy_server(unsigned short port){
                 continue; 
             }
 
-            printf("add new client: %d\n", client_fd);
-            linkedlist_print(head);     // TODO: remove this later
+            printf("Client %d connected\n", client_fd);
         }
 
 
@@ -135,6 +133,8 @@ void rcopy_server(unsigned short port){
                       perror("close socket");
                     }
 
+                    printf("Client %d closed\n", p->fd);
+
                     /* re-assign pointer p since deletion
                      * invalidates pointers including
                      * and beyond the deleted element */
@@ -142,12 +142,12 @@ void rcopy_server(unsigned short port){
                         fprintf(stderr, "server:linkedlist_delete");
                     }
 
+
                 }
 
             }
         }
 
-        linkedlist_print(head);     // TODO: remove this late
 
     }
 }
