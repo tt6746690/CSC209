@@ -76,13 +76,13 @@ int send_data(int fd, const char *client_path, struct request *req);
  * -- >0 the number of child processes created
  */
 //int traverse(const char *source, int sock_fd, char *host, unsigned short port);
-int traverse(const char *source, const char *server_dest, int sock_fd, char *host, unsigned short port, int *error);
+int traverse(const char *source, const char *server_dest, int sock_fd, char *host, unsigned short port);
 
 /*
  * The main client waits for count number of
  * child processes to terminate 
  * Return 0 if success -1 otherwise
  */
-int client_wait(int count);
+int client_wait();
 
 #endif

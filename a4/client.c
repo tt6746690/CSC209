@@ -187,52 +187,51 @@ int send_data(int fd, const char *client_path, struct request *req){
  * Return
  * -- -1 for any error
  * -- 0 for success
- * -- >0 the number of child processes created
  */
-int traverse(const char *source, const char *server_dest, int sock_fd, char *host, unsigned short port, int *error){
-    static int child_count = 0;
+int CHILD_COUNT = 0;
+
+int traverse(const char *source, const char *server_dest, int sock_fd, char *host, unsigned short port){
 
     // make & send request for source
     struct request client_req;
     if (make_req(source, server_dest, &client_req) == -1){
-      *error = 1;
-      return child_count;
+        return -1;
     }
     if (send_req(sock_fd, &client_req) == -1){
-      *error = 1;
-      return child_count;
+        return -1;
     }
 
     // wait for response from server
     int res;
     int num_read = read(sock_fd, &res, sizeof(int));
-    if (num_read != sizeof(int)){ // Can't do anything if message can't be interpreted
-      *error = 1;
-      return child_count;
+    if (num_read != sizeof(int)){ 
+        return -1;
     }
     res = ntohl(res);
 
-    printf("%d \t%d \t%d \t%d \t%s\n",                  // TODO: remove print later
+    printf("%d \t%d \t%d \t%d \t%s \t %s\n",                  // TODO: remove print later
             getpid(), sock_fd,
-            client_req.type, res, client_req.path);
+            client_req.type, res, client_req.path, server_dest);
 
-	  if (res == SENDFILE){
-	      child_count++;
+
+    // handles server response
+    if (res == SENDFILE){
+        CHILD_COUNT++;
 
         int result = fork();
         if (result == 0){                // Child
 
             // Create a new socket for child process
-            int child_sock_fd = child_sock_fd = client_sock(host, port);        // TODO: what is the 2 assignment
+            int child_sock_fd = client_sock(host, port);        
             if (child_sock_fd == -1){
-              exit(1);
+                return -1;
             }
 
             // Sending request
             int file_type = client_req.type;
             client_req.type = TRANSFILE;
             if (send_req(child_sock_fd, &client_req) == -1){
-              exit(1); // We cannot expect a response if the request wasn't fully sent
+                return -1;
             }
 
             /* Copy file / dir has two scenario
@@ -244,9 +243,11 @@ int traverse(const char *source, const char *server_dest, int sock_fd, char *hos
              * ---- client just have to wait for OK
              * ---- server creates dir based on req alone
              */
-
             if(file_type == REGFILE){
-                send_data(child_sock_fd, source, &client_req); //TODO error check
+                int sent = send_data(child_sock_fd, source, &client_req); 
+                if(sent == -1){
+                    return -1;
+                }
             }
 
             /*
@@ -258,12 +259,11 @@ int traverse(const char *source, const char *server_dest, int sock_fd, char *hos
              * -- and exit with status of 1
              */
             num_read = read(child_sock_fd, &res, sizeof(int));
-				    if(num_read != sizeof(int)){
+            if(num_read != sizeof(int)){
                 perror("client:read");
-                exit(1);
+                return -1;
             }
             res = ntohl(res);     
-            
 
             close(child_sock_fd);
 
@@ -272,8 +272,8 @@ int traverse(const char *source, const char *server_dest, int sock_fd, char *hos
                     client_req.type, res, client_req.path);
 
             printf("\t\t\t\t\t\tc:%d \t%d \t%d \t%s \t",
-                getpid(), client_req.size,
-                client_req.mode, client_req.path);
+                    getpid(), client_req.size,
+                    client_req.mode, client_req.path);
             show_hash(client_req.hash);
 
             if(res == OK){
@@ -281,32 +281,25 @@ int traverse(const char *source, const char *server_dest, int sock_fd, char *hos
             } else if (res == ERROR){
                 fprintf(stderr, "client: sock [%d] at [%s] receives "
                         "ERROR from server\n", child_sock_fd, source);
-                exit(1);
-            } else {
-                printf("unexpected res = [%d]", res);
-            }
+            } 
             exit(1);
 
         } else if (result < 0){ //parent
             perror("fork");
-            *error = 1;
-            return child_count;
+            return -1;
         }
 
     } else if(res == ERROR){
         fprintf(stderr, "client: sock [%d] at [%s] receives "
                 "ERROR from server\n", sock_fd, source);
-        *error = 1;
-        return child_count;
+        return -1;
     }
-
 
     // tree traversal
     struct stat file_buf;
     if (lstat(source, &file_buf)){
         perror("client:lstat");
-        *error = 1;
-        return child_count;
+        return -1;
     }
 
 
@@ -317,33 +310,35 @@ int traverse(const char *source, const char *server_dest, int sock_fd, char *hos
 
         if ((dirp = opendir(source)) == NULL){
             perror("opendir");
-            *error = 1;
-            return child_count;
+            return -1;
         }
 
         while ((dp = readdir(dirp)) != NULL){     // traverse dirp
             if ((dp->d_name)[0] != '.'){          // avoid dot files
 
+
                 // Compute "source/filename"
                 char src_path[MAXPATH];
-					      // Compute server_dest/filename
+                // Compute server_dest/filename
                 char server_path[MAXPATH];
-                int inner_error; //error of file in folder
+
                 strncpy(src_path, source, sizeof(src_path) - strlen(source) - 1);
                 strncat(src_path, "/", sizeof(src_path) - strlen("/") - 1);
                 strncat(src_path, dp->d_name, sizeof(src_path) - strlen(dp->d_name) - 1);
-					      strncpy(server_path, server_dest, sizeof(server_path) - strlen(server_dest) - 1);
+                strncpy(server_path, server_dest, sizeof(server_path) - strlen(server_dest) - 1);
                 strncat(server_path, "/", sizeof(server_path) - strlen("/") - 1);
                 strncat(server_path, dp->d_name, sizeof(server_path) - strlen(dp->d_name) - 1);
-
-                traverse(src_path, server_path, sock_fd, host, port, &inner_error);
-                *error = inner_error ? inner_error : *error;
+                
+                int traversed = traverse(src_path, server_path, sock_fd, host, port);
+                if(traversed == -1){
+                    return -1;
+                }
+                 
             }
         }
     }
 
-    return child_count;
-
+    return 0;
 }
 
 /*
@@ -351,9 +346,10 @@ int traverse(const char *source, const char *server_dest, int sock_fd, char *hos
  * child processes to terminate 
  * Return 0 if success -1 otherwise
  */
-int client_wait(int count){
+int client_wait(){
+    printf("count=%d", CHILD_COUNT);
 
-    while(count-- != 0){
+    while(CHILD_COUNT-- != 0){
         pid_t pid;
         int status;
         if((pid = wait(&status)) == -1) {
@@ -364,7 +360,7 @@ int client_wait(int count){
             if(!WIFEXITED(status)){
                 fprintf(stderr, "client:wait return no status\n");
             } else if(WEXITSTATUS(status) == 0){
-                                    // TODO: remove this afterwards. here just for debugging..
+                // TODO: remove this afterwards. here just for debugging..
                 fprintf(stdout, "\t\t\t\t\t\tf:%d \tterminated "
                         "with [%d] (success)\n", pid, WEXITSTATUS(status));
             } else if(WEXITSTATUS(status) == 1){

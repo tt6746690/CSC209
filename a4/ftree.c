@@ -30,27 +30,20 @@ int rcopy_client(char *source, char *host, unsigned short port){
     printf("pid \tsock \ttype \tres \tpath\t\t pid \tsize \tmode \tpath \thash\n");
 
     // tree traversal
-    int error = 0;
-    int child_count;
+    /* int child_count; */
+    int traversed;
     char *base = basename(source);      
-
 	printf("path %s, basename %s\n", source, base);    
-    child_count = traverse(source, base, sock_fd, host, port, &error);
-    /* child_count = traverse(source, base, sock_fd, host, port); */
 
-    // close main socket for tree traversal
+    traversed = traverse(source, base, sock_fd, host, port);
     close(sock_fd);
 
-    // parent process wait for copy to finish
-    int wait_error = client_wait(child_count); //TODO return type
-    /* if(child_count == -1){ */
-    /*     fprintf(stderr, "Error on traversal\n"); */
-    /*     return -1; */
-    /* } else if(child_count >= 0){ */
-    /*     client_wait(child_count); */
-    /* } */
+    if(traversed == -1){
+        return -1;
+    } else{
+        return client_wait(); 
+    }
 
-    return error || wait_error;
 }
 
 
@@ -76,6 +69,7 @@ void rcopy_server(unsigned short port){
 
     // head holds a linked list of client struct
     struct client *head = malloc(sizeof(struct client));
+
 
     /*
      * An infinity loop where errors are reported 
