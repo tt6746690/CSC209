@@ -83,6 +83,6 @@ int traverse(const char *source, const char *server_dest, int sock_fd, char *hos
  * -- nothing on success
  * -- error msg on error
  */
-void client_wait(int count);
+int client_wait(int count);
 
 #endif

@@ -334,14 +334,14 @@ int traverse(const char *source, const char *server_dest, int sock_fd, char *hos
  * 0 -- nothing
  * 1 -- error msg
  */
-void client_wait(int count){
+int client_wait(int count){
 
     while(count-- != 0){
         pid_t pid;
         int status;
         if((pid = wait(&status)) == -1) {
             perror("client:wait");
-            exit(1);
+            return 1;
         } else {
 
             if(!WIFEXITED(status)){
@@ -356,5 +356,5 @@ void client_wait(int count){
             }
         }
     }
-
+    return 0;
 }

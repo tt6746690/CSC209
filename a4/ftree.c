@@ -39,9 +39,9 @@ int rcopy_client(char *source, char *host, unsigned short port){
     close(sock_fd);
 
     // parent process wait for copy to finish
-    client_wait(child_count); //TODO return type
-    
-    return error;
+    int wait_error = client_wait(child_count); //TODO return type
+
+    return error || wait_error;
 }
 
 
