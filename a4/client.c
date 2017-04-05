@@ -5,7 +5,9 @@
 
 /* Create a new socket that connects to host
  * Waiting for a successful connection
- * Returns sock_fd and exits should error arises
+ * Returns 
+ * -- sock_fd for success
+ * -- -1 for error
  */
 int client_sock(char *host, unsigned short port){
 
@@ -13,7 +15,7 @@ int client_sock(char *host, unsigned short port){
     sock_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (sock_fd < 0) {
         perror("client: socket");
-        exit(1);
+        return -1;
     }
 
     // Set the IP and port of the server to connect to.
@@ -37,9 +39,10 @@ int client_sock(char *host, unsigned short port){
 
     return sock_fd;
 }
+
 /* Construct client request for file/dir at path
  * request is modified to accomodate changes
- * exits process on error
+ * Return 0 on success and -1 on failure
  */
 int make_req(const char *client_path, const char *server_path, struct request *req){
 
@@ -67,7 +70,8 @@ int make_req(const char *client_path, const char *server_path, struct request *r
     }
 
     if (fclose(f) != 0){
-        perror("fclose"); //TODO return -1?
+        perror("fclose"); 
+        return -1;
     }
 
     return 0;
@@ -81,31 +85,42 @@ int make_req(const char *client_path, const char *server_path, struct request *r
  * -- mode
  * -- hash
  * -- size
+ * Return 0 if success otherwise -1 
  */
 int send_req(int sock_fd, struct request *req){
-	 int t = htonl(req->type);
+
+    int t = htonl(req->type);
     if(write(sock_fd, &t, sizeof(int)) == -1) {
         perror("client:write");
-        return -1; // TODO: how should we handle these failures?
+        return -1; 
     }
+
     if(write(sock_fd, req->path, MAXPATH) == -1) {
         perror("client:write");
         return -1;
     }
-    mode_t m = htonl(req->mode);
+
+    mode_t m = htons(req->mode);            // mode_t is 16bit int
     if(write(sock_fd, &m, sizeof(mode_t)) == -1) {
         perror("client:write");
         return -1;
     }
+
     if(write(sock_fd, req->hash, BLOCKSIZE) == -1) {
         perror("client:write");
         return -1;
     }
+
     int s = htonl(req->size);
     if(write(sock_fd, &s, sizeof(size_t)) == -1) {
         perror("client:write");
         return -1;
     }
+    //TODO: rmeove later
+    /* printf("type:orig=%d, net=%d, host=%d\n", req->type, htonl(req->type), htonl(ntohl(req->type))); */
+    /* printf("mode:orig=%d, net=%d, host=%d\n", req->mode, htonl(req->mode), htonl(ntohl(req->mode))); */
+    /* printf("size:orig=%d, net=%d, host=%d\n", req->size, htonl(req->size), htonl(ntohl(req->size))); */
+    /* printf("req:orig=%d, net=%d, host=%d\n", req->size, htonl(req->size), htonl(ntohl(req->size))); */
     return 0;
 }
 
@@ -118,14 +133,15 @@ int send_req(int sock_fd, struct request *req){
  * -- write to client socket where nbytes is
  * ---- BUFSIZE if eof is not reached
  * ---- position of EOF if eof is reached
+ * Return 0 if success otherwise -1
  */
-void send_data(int fd, const char *client_path, struct request *req){
+int send_data(int fd, const char *client_path, struct request *req){
 
     FILE *f;
     printf("%s", req->path);
     if((f = fopen(client_path, "r")) == NULL){
         perror("client:open");
-        exit(1);
+        return -1;
     }
 
     int num_read;
@@ -135,20 +151,22 @@ void send_data(int fd, const char *client_path, struct request *req){
 
         if(ferror(f) != 0){
             fprintf(stderr, "fread error: %s", req->path);
+            return -1;
         }
 
-        /* printf("buf = [%s] num_read = [%d] nbytes = [%d]\n", buffer, num_read, nbytes); */
+        /* printf("buf = [%s] num_read = [%d] nbytes = [%d]\n", buffer, num_read, nbytes); */ // TODO: remove print
 
         if(write(fd, buffer, num_read) == -1){
             perror("client:write");
-            exit(1);
+            return -1;
         }
     }
 
     if(fclose(f) != 0){
         perror("client:fclose");
-        exit(1);
+        return -1;
     }
+    return 0;
 
 
 }
@@ -192,7 +210,7 @@ int traverse(const char *source, const char *server_dest, int sock_fd, char *hos
       *error = 1;
       return child_count;
     }
-	  res = ntohl(res);
+    res = ntohl(res);
 
     printf("%d \t%d \t%d \t%d \t%s\n",                  // TODO: remove print later
             getpid(), sock_fd,
@@ -205,7 +223,7 @@ int traverse(const char *source, const char *server_dest, int sock_fd, char *hos
         if (result == 0){                // Child
 
             // Create a new socket for child process
-            int child_sock_fd = child_sock_fd = client_sock(host, port);
+            int child_sock_fd = child_sock_fd = client_sock(host, port);        // TODO: what is the 2 assignment
             if (child_sock_fd == -1){
               exit(1);
             }
@@ -244,7 +262,8 @@ int traverse(const char *source, const char *server_dest, int sock_fd, char *hos
                 perror("client:read");
                 exit(1);
             }
-            num_read = ntohl(num_read);
+            res = ntohl(res);     
+            
 
             close(child_sock_fd);
 
@@ -329,10 +348,8 @@ int traverse(const char *source, const char *server_dest, int sock_fd, char *hos
 
 /*
  * The main client waits for count number of
- * child processes to terminate and report
- * based on exist status
- * 0 -- nothing
- * 1 -- error msg
+ * child processes to terminate 
+ * Return 0 if success -1 otherwise
  */
 int client_wait(int count){
 
@@ -341,18 +358,19 @@ int client_wait(int count){
         int status;
         if((pid = wait(&status)) == -1) {
             perror("client:wait");
-            return 1;
+            return -1;
         } else {
 
             if(!WIFEXITED(status)){
                 fprintf(stderr, "client:wait return no status\n");
             } else if(WEXITSTATUS(status) == 0){
-                // TODO: remove this afterwards. here just for debugging..
+                                    // TODO: remove this afterwards. here just for debugging..
                 fprintf(stdout, "\t\t\t\t\t\tf:%d \tterminated "
                         "with [%d] (success)\n", pid, WEXITSTATUS(status));
             } else if(WEXITSTATUS(status) == 1){
                 fprintf(stdout, "\t\t\t\t\t\tf:%d \tterminated "
                         "with [%d] (error)\n", pid, WEXITSTATUS(status));
+                return -1;
             }
         }
     }

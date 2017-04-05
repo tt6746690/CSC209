@@ -23,7 +23,7 @@ int rcopy_client(char *source, char *host, unsigned short port){
 
     printf("=== INFO ===\n");
     printf("req\t REGFILE=[1]\tREGDIR=[2]\tTRANSFILE=[3]\n");
-    printf("res\t OK=[0] \tSENDFILE=[1]\tERROR=[2]\n");
+    printf("res\t OK=[0] \tSENDFILE=[1] \tERROR=[2]\n");
     printf("\n");
     printf("=== Tree traversal ===\t\t\t\t "
             "=== Wait for copy to finish === \n");
@@ -32,14 +32,23 @@ int rcopy_client(char *source, char *host, unsigned short port){
     // tree traversal
     int error = 0;
     int child_count;
-    char *base = basename(source); //EG: folder/test --> test
+    char *base = basename(source);      
+
+	printf("path %s, basename %s\n", source, base);    
     child_count = traverse(source, base, sock_fd, host, port, &error);
+    /* child_count = traverse(source, base, sock_fd, host, port); */
 
     // close main socket for tree traversal
     close(sock_fd);
 
     // parent process wait for copy to finish
     int wait_error = client_wait(child_count); //TODO return type
+    /* if(child_count == -1){ */
+    /*     fprintf(stderr, "Error on traversal\n"); */
+    /*     return -1; */
+    /* } else if(child_count >= 0){ */
+    /*     client_wait(child_count); */
+    /* } */
 
     return error || wait_error;
 }
@@ -68,6 +77,10 @@ void rcopy_server(unsigned short port){
     // head holds a linked list of client struct
     struct client *head = malloc(sizeof(struct client));
 
+    /*
+     * An infinity loop where errors are reported 
+     * and the cycle goes to next iteration with continue
+     */
     while (1) {
         /* select updates the fd_set it receives,
          * so we always use a copy and retain the original.
@@ -77,8 +90,7 @@ void rcopy_server(unsigned short port){
         int nready = select(max_fd + 1, &listen_fds, NULL, NULL, NULL);
         if (nready == -1) {
             perror("server: select");
-            close(sock_fd); //TODO : could it continue?
-            exit(1);
+            continue;
         }
 
         /* On active server socket, accept incoming client connection
@@ -97,8 +109,8 @@ void rcopy_server(unsigned short port){
             FD_SET(client_fd, &all_fds);
 
             // keep track of new client in head
-            if (linkedlist_insert(head, client_fd) == -1){
-              continue; //perror called in linkedlist_insert
+            if (linkedlist_insert(head, client_fd) == NULL){
+                continue; 
             }
 
             printf("add new client: %d\n", client_fd);
@@ -113,7 +125,6 @@ void rcopy_server(unsigned short port){
             if(FD_ISSET(p->fd, &listen_fds)){
 
                 int result = read_req(p);
-
                 /*
                  * result is
                  * -- fd
@@ -125,8 +136,7 @@ void rcopy_server(unsigned short port){
                  * ---- report error properly
                  */
                 if(result == -1){
-                    fprintf(stderr, "ERROR: file = [%s]\n", (p->client_req).path);
-                    continue;
+                    fprintf(stderr, "server: error on handling file = [%s]\n", (p->client_req).path);
                 } else if(result == p->fd){
 
                     FD_CLR(p->fd, &all_fds);

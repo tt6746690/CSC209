@@ -29,9 +29,8 @@ int client_sock(char *host, unsigned short port);
 
 /* Construct client request for file/dir at path
  * request is modified to accomodate changes
- * exits process on error
+ * Return 0 on success and -1 on failure
  */
-//void make_req(const char *path, struct request *client_req);
 int make_req(const char *path, const char *server_path, struct request *client_req);
 
 /*
@@ -42,6 +41,7 @@ int make_req(const char *path, const char *server_path, struct request *client_r
  * -- mode
  * -- hash
  * -- size
+ * Return 0 if success -1 otherwise
  */
 int send_req(int sock_fd, struct request *req);
 
@@ -52,9 +52,10 @@ int send_req(int sock_fd, struct request *req);
  * -- write to client socket where nbytes is
  * ---- BUFSIZE if eof is not reached
  * ---- position of EOF if eof is reached
+ * Return 0 if success -1 otherwise
  */
+int send_data(int fd, const char *client_path, struct request *req);
 //void send_data(int fd, struct request *req);
-void send_data(int fd, const char *client_path, struct request *req);
 
 /*
  * Recursively traverses filepath rooted at source with sock_fd
@@ -79,9 +80,8 @@ int traverse(const char *source, const char *server_dest, int sock_fd, char *hos
 
 /*
  * The main client waits for count number of
- * child processes to terminate and report
- * -- nothing on success
- * -- error msg on error
+ * child processes to terminate 
+ * Return 0 if success -1 otherwise
  */
 int client_wait(int count);
 

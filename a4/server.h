@@ -46,9 +46,11 @@ struct client {
 /*
  * Allocates memory for a new struct client
  * at end of linked list with given fd
- * Returns pointer to the newly created element
+ * Returns 
+ * -- pointer to the newly created element if success
+ * -- NULL pointer otherwise
  */
-int linkedlist_insert(struct client *head, int fd);
+struct client * linkedlist_insert(struct client *head, int fd);
 
 /*
  * Delete client in head linked list with given fd
@@ -66,6 +68,8 @@ void linkedlist_print(struct client *head);
  * Creates server socket
  * binds to PORT and starts litening to
  * connection from INADDR_ANY
+ *
+ * program terminate upon sys call failures
  */
 int server_sock(unsigned short port);
 
@@ -87,8 +91,7 @@ int server_sock(unsigned short port);
 int read_req(struct client *cli);
 
 /*
- * Compare files
- * Based on client request (cli->client_req)
+ * Compare files based on client request (cli->client_req)
  * Sends res signal to client
  * SENDFILE
  * -- server_file does not exist
@@ -98,6 +101,9 @@ int read_req(struct client *cli);
  * ERROR
  * -- file types are incompatible (i.e. file vs. directory)
  * Return
+ * -- ERROR on sys call error 
+ * -- SENDFILE if file / dir does not match request
+ * -- OK if file / dir match request
  */
 int compare_file(struct client *cli);
 
