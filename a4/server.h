@@ -9,7 +9,7 @@
 #include <string.h>     // memset
 #include <errno.h>      // perror
 #include <stdlib.h>     // exit
-#include <sys/stat.h>   // stat 
+#include <sys/stat.h>   // stat
 #include <netdb.h>      // sockaddr_in
 
 #include "hash.h"       // hash()
@@ -20,19 +20,19 @@
  * linked list for tracking mult read for sending request struct
  *
  * -- fd
- * ---- client's file descriptor 
- * -- current_state 
+ * ---- client's file descriptor
+ * -- current_state
  * ---- AWAITING_TYPE 0
  * ---- AWAITING_PATH 1
  * ---- AWAITING_SIZE 2
  * ---- AWAITING_PERM 3
  * ---- AWAITING_HASH 4
  * ---- AWAITING_DATA 5
- * -- file 
+ * -- file
  * ---- keeps stream open for copying files over multiple read calls
- * -- request 
- * ---- request sent from client 
- * -- next 
+ * -- request
+ * ---- request sent from client
+ * -- next
  * ---- pointer to the next client in the linked list
  */
 struct client {
@@ -48,7 +48,7 @@ struct client {
  * at end of linked list with given fd
  * Returns pointer to the newly created element
  */
-struct client *linkedlist_insert(struct client *head, int fd);
+int linkedlist_insert(struct client *head, int fd);
 
 /*
  * Delete client in head linked list with given fd
@@ -123,11 +123,11 @@ int make_file(struct client *cli);
 
 /*
  * Writes inputs from client socket to destination file
- * on the server. 
- * Precondition: client has a valid input file stream 
+ * on the server.
+ * Precondition: client has a valid input file stream
  *      created using make_file
- * Postcondition: input file stream is closed only when 
- *      client has finished sending the file over 
+ * Postcondition: input file stream is closed only when
+ *      client has finished sending the file over
  * Return
  * -- -1 on error
  * -- 0 if file copy not finished

@@ -6,6 +6,8 @@
  * Creates server socket
  * binds to PORT and starts litening to
  * connection from INADDR_ANY
+ *
+ * Exits the program upon failure
  */
 int server_sock(unsigned short port){
     int sock_fd;
@@ -22,6 +24,7 @@ int server_sock(unsigned short port){
             (const char *) &on, sizeof(on));
     if(status == -1) {
         perror("setsockopt -- REUSEADDR");
+        exit(1); // TODO : Was there a reason this was missing, Mark? Does the program work if this fails?
     }
 
     // Set up server address
@@ -54,12 +57,13 @@ int server_sock(unsigned short port){
  * at end of linked list with given fd
  * Returns pointer to the newly created element
  */
-struct client *linkedlist_insert(struct client *head, int fd){
+int linkedlist_insert(struct client *head, int fd){
 
     /* end is the last element in linklist head */
     struct client *end;
     end = head;
-
+    //TODO: Aren't linkedlists better for inserting to the front?
+    // TODO: if we change it, then should replace return tpye with new head
     while(end->next != NULL){
         end = end->next;
     }
@@ -69,7 +73,7 @@ struct client *linkedlist_insert(struct client *head, int fd){
     struct client *new_client;
     if((new_client = malloc(sizeof(struct client))) == NULL) {
         perror("server:malloc");
-        exit(1);
+        return -1;
     }
 
     end->next = new_client;
@@ -77,11 +81,11 @@ struct client *linkedlist_insert(struct client *head, int fd){
     /* Initialize new_client to default values */
     new_client->fd = fd;
     new_client->current_state = AWAITING_TYPE;
-    new_client->file = NULL; 
+    new_client->file = NULL;
     new_client->client_req = (const struct request) {0};
     new_client->next = NULL;
 
-    return new_client;
+    return 0;
 }
 
 /*
@@ -179,7 +183,7 @@ int read_req(struct client *cli){
             perror("server:read");
             return -1;
         } else if(num_read == 0){
-            return -1;
+            return -1; // Could be close
         }
         cli->current_state = AWAITING_PERM;
     } else if(state == AWAITING_PERM){      // 3
@@ -191,7 +195,7 @@ int read_req(struct client *cli){
         } else if(num_read == 0){
             return -1;
         }
-        req->mode = ntohl(req->mode);        
+        req->mode = ntohl(req->mode);
         cli->current_state = AWAITING_HASH;
     } else if(state == AWAITING_HASH){      // 4
 
@@ -212,7 +216,7 @@ int read_req(struct client *cli){
         } else if(num_read == 0){
             return -1;
         }
-        req->size = ntohl(req->size);        
+        req->size = ntohl(req->size);
         /*
          * If request type is
          * TRANSFILE
@@ -228,7 +232,10 @@ int read_req(struct client *cli){
             }
             cli->current_state = AWAITING_DATA;
         } else{
-            compare_file(cli); // TODO return type necessary? yes 
+            if (compare_file(cli) == -1 ){
+              int response = htonl(ERROR);
+              write(cli->fd, &response, sizeof(int));
+            }
             cli->current_state = AWAITING_TYPE;
         }
     } else if(state == AWAITING_DATA){          // 5
@@ -237,7 +244,7 @@ int read_req(struct client *cli){
          * Precondition
          * -- req.type = TRANSFILE && req.path holds non-directory
          * steps
-         * -- open file stream and store to client struct 
+         * -- open file stream and store to client struct
          * -- subsequently read over multiple connections
          * ---- if necessary to copy over files
          */
@@ -270,23 +277,23 @@ int read_req(struct client *cli){
  * Return
  */
 int compare_file(struct client *cli){
-		
+
     int response = ERROR;
     struct request req = cli->client_req;
     int client_fd = cli->fd;
-	 
-	 
+
+
 	 struct stat server_file_stat;
 	 if (lstat(req.path, &server_file_stat) != 0){
-		if (errno != ENOENT)	{	
+		if (errno != ENOENT)	{
 	 		perror("lstat");
-	 		exit(1);
+	 		return -1;
 	 	} else {
-			response = SENDFILE; // File does't exist	 	
+			response = SENDFILE; // File does't exist
 	 	}
 	 }
-	 
-	 else { // FILE exists 
+
+	 else { // FILE exists
 	 	// Two different ways to mismatch
 	 	if (req.type == REGFILE && S_ISDIR(server_file_stat.st_mode)){
 	 		response = ERROR;
@@ -295,7 +302,7 @@ int compare_file(struct client *cli){
 	 		response = ERROR;
 	 	} else if (req.type == REGFILE){ // if both files (client/server) are regular files
 	 		FILE *server_file = fopen(req.path, "r");
-    		if (server_file == NULL && errno != ENOENT){ // TODO lstat checks if exists
+    		if (server_file == NULL && errno != ENOENT){ // TODO lstat checks if exists, so Errno != might not be necessary
         		perror("fopen");
         		return -1;
     		}
@@ -305,31 +312,31 @@ int compare_file(struct client *cli){
     		if (server_file != NULL){
         		char file_hash[BLOCKSIZE];
         		//printf("%s exist on server\n", req.path);
-        		
+
         		hash(file_hash, server_file);
         		compare = check_hash(req.hash, file_hash);
         		//printf("client hash : ");show_hash(req.hash);
         		//printf("server hash: "); show_hash(file_hash);
-        		
+
     		}
-	 
+
 	 		if (compare || server_file == NULL)
         		response = SENDFILE;
     		else
-        		response = OK; 
-    		
-			
+        		response = OK;
+
+
 	 	} else { // If both files are directories
 	 		response = OK;  // just need to update permissions
 	 	}
-	 	// Updates permissions regardless of response    		
-    	if (chmod(req.path, req.mode) == -1){
-      	perror("chmod");
-         exit(1);
-      }
-	 
+	 	// Updates permissions regardless of response
+    if (chmod(req.path, req.mode) == -1){
+      perror("chmod");
+      //return -1;
+    }
+
 	 }
-	     	
+
     response = htonl(response);
     write(client_fd, &response, sizeof(int));
     //printf("%d \tres={%d} \t%d\n", client_fd, response, cli->current_state);
@@ -398,11 +405,11 @@ int make_file(struct client *cli){
 
 /*
  * Writes inputs from client socket to destination file
- * on the server. 
- * Precondition: client has a valid input file stream 
+ * on the server.
+ * Precondition: client has a valid input file stream
  *      created using make_file
- * Postcondition: input file stream is closed only when 
- *      client has finished sending the file over 
+ * Postcondition: input file stream is closed only when
+ *      client has finished sending the file over
  * Return
  * -- -1 on error
  * -- 0 if file copy not finished
@@ -418,7 +425,7 @@ int write_file(struct client *cli){
     int num_read, num_wrote;
     char buf[BUFSIZE];
 
-    num_read = read(fd, buf, nbytes);       
+    num_read = read(fd, buf, nbytes);
 
     if(num_read == -1) {
         perror("server:read");
@@ -442,7 +449,7 @@ int write_file(struct client *cli){
     // copy is finished if read
     // -- is successful
     // -- number of bytes read is not BUFSIZE
-	 //TODO : ERROR check    
+	 //TODO : ERROR check
     if(nbytes != BUFSIZE || num_read == 0){
 
         if(fclose(cli->file) != 0){

@@ -17,7 +17,9 @@ int rcopy_client(char *source, char *host, unsigned short port){
     // main socket for tree traversal
     int sock_fd;
     sock_fd = client_sock(host, port);
-
+    if (sock_fd == -1){
+      return -1;
+    }
 
     printf("=== INFO ===\n");
     printf("req\t REGFILE=[1]\tREGDIR=[2]\tTRANSFILE=[3]\n");
@@ -28,23 +30,18 @@ int rcopy_client(char *source, char *host, unsigned short port){
     printf("pid \tsock \ttype \tres \tpath\t\t pid \tsize \tmode \tpath \thash\n");
 
     // tree traversal
+    int error = 0;
     int child_count;
-    // TODO: basename?
     char *base = basename(source); //EG: folder/test --> test
-	 child_count = traverse(source, base, sock_fd, host, port);
-
+    child_count = traverse(source, base, sock_fd, host, port, &error);
 
     // close main socket for tree traversal
     close(sock_fd);
 
     // parent process wait for copy to finish
-    if(child_count == -1){
-        fprintf(stderr, "Error on traversal\n");
-    } else if(child_count >= 0){
-        client_wait(child_count);
-    }
-
-    return 0;
+    client_wait(child_count); //TODO return type
+    
+    return error;
 }
 
 
@@ -80,6 +77,7 @@ void rcopy_server(unsigned short port){
         int nready = select(max_fd + 1, &listen_fds, NULL, NULL, NULL);
         if (nready == -1) {
             perror("server: select");
+            close(sock_fd); //TODO : could it continue?
             exit(1);
         }
 
@@ -99,7 +97,9 @@ void rcopy_server(unsigned short port){
             FD_SET(client_fd, &all_fds);
 
             // keep track of new client in head
-            linkedlist_insert(head, client_fd);
+            if (linkedlist_insert(head, client_fd) == -1){
+              continue; //perror called in linkedlist_insert
+            }
 
             printf("add new client: %d\n", client_fd);
             linkedlist_print(head);     // TODO: remove this later
