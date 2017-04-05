@@ -234,6 +234,19 @@ int read_req(struct client *cli){
                 return make_dir(cli);
             }
             cli->current_state = AWAITING_DATA;
+            if(req->size == 0){
+                int made, response, num_wrote;
+
+                made = make_file(cli);
+                response = htonl(OK);
+                
+                num_wrote = write(fd, &response, sizeof(int));      
+                if(num_wrote == -1){
+                    perror("server:write");
+                    return -1;
+                }
+                return 0;
+            }
         } else{
 
             int compared, response;
@@ -418,9 +431,7 @@ int make_file(struct client *cli){
         fprintf(stderr, "chmod: cannot set permission for [%s]\n", req->path);
         return -1;
     }
-
     return 0;
-
 }
 
 /*
@@ -445,7 +456,6 @@ int write_file(struct client *cli){
     int num_read, num_wrote;
     char buf[BUFSIZE];
 
-	 // TODO: how do we know this is okay to do?
     num_read = read(fd, buf, nbytes);
 
     if(num_read == -1) {

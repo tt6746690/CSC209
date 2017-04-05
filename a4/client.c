@@ -131,29 +131,37 @@ int send_req(int sock_fd, struct request *req){
  * Return 0 if success otherwise -1
  */
 int send_data(int fd, const char *client_path, struct request *req){
-	 printf("Here I'm about to open a file\n");
+	printf("Here I'm about to open a file\n");
     FILE *f;
     if((f = fopen(client_path, "r")) == NULL){
         perror("client:open");
         return -1;
     }
-	 printf("I opened an empty file\n");
+	printf("I opened an empty file\n");
     int num_read;
     char buffer[BUFSIZE];
 
     while((num_read = fread(buffer, 1, BUFSIZE, f)) > 0){
+        printf("num_read = %d", num_read);
 		   
         if(ferror(f) != 0){
             fprintf(stderr, "fread error: %s", req->path);          
-				//fclose(f);	            
+            if(fclose(f) != 0){
+                perror("client:fclose");
+            }
             return -1;
         }
 
         if(write(fd, buffer, num_read) == -1){
             perror("client:write");
+            if(fclose(f) != 0){
+                perror("client:fclose");
+            }
             return -1;
         }
     }
+
+    printf("after fread ");
 
     if(fclose(f) != 0){
         perror("client:fclose");
@@ -210,6 +218,7 @@ int traverse(const char *source, const char *server_dest, int sock_fd, char *hos
         int result = fork();
         if (result == 0){                // Child
 
+            printf("in child now\n");
             // Create a new socket for child process
             int child_sock_fd = client_sock(host, port);        
             if (child_sock_fd == -1){
@@ -220,12 +229,14 @@ int traverse(const char *source, const char *server_dest, int sock_fd, char *hos
             int file_type = client_req.type;
             client_req.type = TRANSFILE;
             if (send_req(child_sock_fd, &client_req) == -1){
-					 close(child_sock_fd);                
+                close(child_sock_fd);                
                 exit(1);
             }
 
             /* Copy file / dir has two scenario
-             * based on the type of file / dir
+             * based on the type of file / dir 
+             * Precondition
+             * -- file / dir is non empty
              * -- REGFILE
              * ---- client opens file and writes to client socket
              * ---- server reads and creates new file
@@ -233,10 +244,10 @@ int traverse(const char *source, const char *server_dest, int sock_fd, char *hos
              * ---- client just have to wait for OK
              * ---- server creates dir based on req alone
              */
-            if(file_type == REGFILE){
+            if(file_type == REGFILE && client_req.size != 0){
                 int sent = send_data(child_sock_fd, source, &client_req); 
                 if(sent == -1){
-                	  close(child_sock_fd);
+                    close(child_sock_fd);
                     exit(1);
                 }
             }
@@ -259,7 +270,7 @@ int traverse(const char *source, const char *server_dest, int sock_fd, char *hos
 
             close(child_sock_fd);
 
-            /* printf("%d \t%d \t%d \t%d \t%s\n",          TODO: debugging purposes
+            /* printf("%d \t%d \t%d \t%d \t%s\n",          TODO: debugging purposes */
             /*         getpid(), child_sock_fd, */
             /*         client_req.type, res, client_req.path); */
             /*  */
