@@ -32,18 +32,15 @@ int rcopy_client(char *source, char *host, unsigned short port){
     // tree traversal
     /* int child_count; */
     int traversed;
+    int waited;
     char *base = basename(source);      
-	printf("path %s, basename %s\n", source, base);    
 
     traversed = traverse(source, base, sock_fd, host, port);
     close(sock_fd);
 
-    if(traversed == -1){
-        return -1;
-    } else{
-        return client_wait(); 
-    }
+    waited = client_wait();
 
+    return traversed || waited;
 }
 
 
