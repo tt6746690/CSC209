@@ -239,7 +239,7 @@ int read_req(struct client *cli){
 
                 made = make_file(cli);
                 response = htonl(OK);
-                
+
                 num_wrote = write(fd, &response, sizeof(int));      
                 if(num_wrote == -1){
                     perror("server:write");

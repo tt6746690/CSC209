@@ -19,15 +19,10 @@ int rcopy_client(char *source, char *host, unsigned short port){
     int sock_fd;
     sock_fd = client_sock(host, port);
     if (sock_fd == -1){
-      return 1;
+        return 1;
     }
 
-    /* printf("=== Tree traversal ===\t\t\t\t " */
-    /*         "=== Wait for copy to finish === \n"); */
-    /* printf("pid \tsock \ttype \tres \tpath\t\t pid \tsize \tmode \tpath \thash\n"); */
-
     // tree traversal
-    /* int child_count; */
     int traversed;
     int waited;
     char *base = basename(source);      
@@ -130,7 +125,7 @@ void rcopy_server(unsigned short port){
 
                     FD_CLR(p->fd, &all_fds);
                     if (close(p->fd) == -1){
-                      perror("close socket");
+                        perror("close socket");
                     }
 
                     printf("Client %d closed\n", p->fd);

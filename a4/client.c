@@ -131,19 +131,16 @@ int send_req(int sock_fd, struct request *req){
  * Return 0 if success otherwise -1
  */
 int send_data(int fd, const char *client_path, struct request *req){
-	printf("Here I'm about to open a file\n");
     FILE *f;
     if((f = fopen(client_path, "r")) == NULL){
         perror("client:open");
         return -1;
     }
-	printf("I opened an empty file\n");
     int num_read;
     char buffer[BUFSIZE];
 
     while((num_read = fread(buffer, 1, BUFSIZE, f)) > 0){
-        printf("num_read = %d", num_read);
-		   
+
         if(ferror(f) != 0){
             fprintf(stderr, "fread error: %s", req->path);          
             if(fclose(f) != 0){
@@ -160,8 +157,6 @@ int send_data(int fd, const char *client_path, struct request *req){
             return -1;
         }
     }
-
-    printf("after fread ");
 
     if(fclose(f) != 0){
         perror("client:fclose");
@@ -218,7 +213,6 @@ int traverse(const char *source, const char *server_dest, int sock_fd, char *hos
         int result = fork();
         if (result == 0){                // Child
 
-            printf("in child now\n");
             // Create a new socket for child process
             int child_sock_fd = client_sock(host, port);        
             if (child_sock_fd == -1){
@@ -269,15 +263,6 @@ int traverse(const char *source, const char *server_dest, int sock_fd, char *hos
             res = ntohl(res);     
 
             close(child_sock_fd);
-
-            /* printf("%d \t%d \t%d \t%d \t%s\n",          TODO: debugging purposes */
-            /*         getpid(), child_sock_fd, */
-            /*         client_req.type, res, client_req.path); */
-            /*  */
-            /* printf("\t\t\t\t\t\tc:%d \t%d \t%d \t%s \t", */
-            /*         getpid(), client_req.size, */
-            /*         client_req.mode, client_req.path); */
-            /* show_hash(client_req.hash); */
 
             if(res == OK){
                 exit(0);
@@ -330,12 +315,12 @@ int traverse(const char *source, const char *server_dest, int sock_fd, char *hos
                 strncpy(server_path, server_dest, sizeof(server_path) - strlen(server_dest) - 1);
                 strncat(server_path, "/", sizeof(server_path) - strlen("/") - 1);
                 strncat(server_path, dp->d_name, sizeof(server_path) - strlen(dp->d_name) - 1);
-                
+
                 int traversed = traverse(src_path, server_path, sock_fd, host, port);
                 if(traversed == -1){
                     return -1;
                 }
-                 
+
             }
         }
     }
@@ -360,13 +345,13 @@ int client_wait(){
 
             if(!WIFEXITED(status)){
                 fprintf(stderr, "client:wait return no status\n");
+                return -1;
             } else if(WEXITSTATUS(status) == 0){
-                /* fprintf(stdout, "\t\t\t\t\t\tf:%d \tterminated " */
-                /*         "with [%d] (success)\n", pid, WEXITSTATUS(status)); */
+                // success
             } else if(WEXITSTATUS(status) == 1){
-                fprintf(stderr, "\t\t\t\t\t\tf:%d \tterminated "
+                fprintf(stderr, "child %d \tterminated "
                         "with [%d] (error)\n", pid, WEXITSTATUS(status));
-                //return -1;
+                return -1;
             }
         }
     }

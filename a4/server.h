@@ -139,7 +139,7 @@ int make_file(struct client *cli);
  * -- 0 if file copy not finished
  * -- fd if file copy finished
  * (i.e. file transfer over multiple select calls)
-*/
+ */
 int write_file(struct client *cli);
 
 #endif // _SERVER_H_
