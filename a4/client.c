@@ -140,6 +140,7 @@ int send_data(int fd, const char *client_path, struct request *req){
     char buffer[BUFSIZE];
 
     while((num_read = fread(buffer, 1, BUFSIZE, f)) > 0){
+        printf("num_read = %d", num_read);
 
         if(ferror(f) != 0){
             fprintf(stderr, "fread error: %s", req->path);
@@ -338,7 +339,7 @@ int traverse(const char *source, const char *server_dest, int sock_fd, char *hos
  * Return 0 if success -1 otherwise
  */
 int client_wait(){
-    int error = 0;
+
     while(CHILD_COUNT-- != 0){
         pid_t pid;
         int status;
@@ -349,12 +350,15 @@ int client_wait(){
 
             if(!WIFEXITED(status)){
                 fprintf(stderr, "client:wait return no status\n");
+            } else if(WEXITSTATUS(status) == 0){
+                /* fprintf(stdout, "\t\t\t\t\t\tf:%d \tterminated " */
+                /*         "with [%d] (success)\n", pid, WEXITSTATUS(status)); */
             } else if(WEXITSTATUS(status) == 1){
                 fprintf(stderr, "\t\t\t\t\t\tf:%d \tterminated "
                         "with [%d] (error)\n", pid, WEXITSTATUS(status));
-                error = -1;
+                //return -1;
             }
         }
     }
-    return error;
+    return 0;
 }

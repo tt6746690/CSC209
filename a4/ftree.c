@@ -22,7 +22,12 @@ int rcopy_client(char *source, char *host, unsigned short port){
       return 1;
     }
 
+    /* printf("=== Tree traversal ===\t\t\t\t " */
+    /*         "=== Wait for copy to finish === \n"); */
+    /* printf("pid \tsock \ttype \tres \tpath\t\t pid \tsize \tmode \tpath \thash\n"); */
+
     // tree traversal
+    /* int child_count; */
     int traversed;
     int waited;
     char *base = basename(source);
