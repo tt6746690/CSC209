@@ -238,6 +238,10 @@ int read_req(struct client *cli){
                 int made, response, num_wrote;
 
                 made = make_file(cli);
+                if(made == -1){
+                    return -1; 
+                }
+
                 response = htonl(OK);
 
                 num_wrote = write(fd, &response, sizeof(int));      
