@@ -51,26 +51,32 @@ int make_req(const char *client_path, const char *server_path, struct request *r
         perror("client:lstat");
         return -1;
     }
-    strncpy(req->path, server_path, strlen(server_path) + 1);
-    // Compute file hash
-    FILE *f = fopen(client_path,"r");
-    if (f == NULL){
-        perror("client:fopen");
-        return -1;
-    }
-    // Populate client_req
-    hash(req->hash, f);
-    req->mode = file_buf.st_mode;
-    req->size = file_buf.st_size;
 
-    if (S_ISDIR(file_buf.st_mode)){
-        req->type = REGDIR;
+    if(!S_ISLNK(file_buf.st_mode)){
+        strncpy(req->path, server_path, strlen(server_path) + 1);
+        // Compute file hash
+        FILE *f = fopen(client_path,"r");
+        if (f == NULL){
+            perror("client:fopen");
+            return -1;
+        }
+        // Populate client_req
+        hash(req->hash, f);
+        req->mode = file_buf.st_mode;
+        req->size = file_buf.st_size;
+
+        if (S_ISDIR(file_buf.st_mode)){
+            req->type = REGDIR;
+        } else{
+            req->type = REGFILE;
+        }
+
+        if (fclose(f) != 0){
+            perror("fclose"); 
+            return -1;
+        }
     } else{
-        req->type = REGFILE;
-    }
-
-    if (fclose(f) != 0){
-        perror("fclose"); 
+        fprintf(stderr,"Copying link not supported\n");
         return -1;
     }
 
@@ -302,7 +308,7 @@ int traverse(const char *source, const char *server_dest, int sock_fd, char *hos
         }
 
         while ((dp = readdir(dirp)) != NULL){     // traverse dirp
-            if ((dp->d_name)[0] != '.'){          // avoid dot files
+            if ((dp->d_name)[0] != '.' && dp->d_type != DT_LNK){          // avoid dot files
 
                 // Compute "source/filename"
                 char src_path[MAXPATH];
