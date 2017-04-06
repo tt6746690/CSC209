@@ -30,7 +30,7 @@ int rcopy_client(char *source, char *host, unsigned short port){
     /* int child_count; */
     int traversed;
     int waited;
-    char *base = basename(source);
+    char *base = basename(source);      
 
     traversed = traverse(source, base, sock_fd, host, port);
     if(traversed == -1){
@@ -68,7 +68,7 @@ void rcopy_server(unsigned short port){
     struct client *head = malloc(sizeof(struct client));
 
     /*
-     * An infinity loop where errors are reported
+     * An infinity loop where errors are reported 
      * and the cycle goes to next iteration with continue
      */
     while (1) {
@@ -100,7 +100,7 @@ void rcopy_server(unsigned short port){
 
             // keep track of new client in head
             if (linkedlist_insert(head, client_fd) == NULL){
-                continue;
+                continue; 
             }
 
             printf("Client %d connected\n", client_fd);
@@ -117,23 +117,16 @@ void rcopy_server(unsigned short port){
                 /*
                  * result is
                  * -- fd
-                 * ---- the request has been successful fully read and completed
-                 * -- 0
-                 * ---- to continue reading request
-                 * -- -1
-                 * ---- if an irrecoverable error occurs. Must terminate connection
-                 * ---- we ensured that we can assume no message has been sent
-                 *        to the client in this case (yet)
+                 * ---- remove fd from all_fds
+                 * ---- close fd
+                 * ---- remove client struct from linked list head
+                 * -- 0 to continue reading req
+                 * -- -1 if sys call fails
+                 * ---- report error properly
                  */
                 if(result == -1){
                     fprintf(stderr, "server: error on handling file = [%s]\n", (p->client_req).path);
-                    int rep = htonl(ERROR);
-                    // Try to send an error
-                    if (write(p->fd, &rep, sizeof(int)) == -1){
-                      perror("write");
-                    }
-              // Disconnect from client and remove from remove from linkedlist
-              } if(result == p->fd || result == -1){
+                } else if(result == p->fd){
 
                     FD_CLR(p->fd, &all_fds);
                     if (close(p->fd) == -1){

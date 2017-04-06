@@ -25,7 +25,7 @@ int server_sock(unsigned short port){
 
     if(status == -1) {
         perror("setsockopt -- REUSEADDR");
-        exit(1);
+        exit(1); 
     }
 
     // Set up server address
@@ -56,7 +56,7 @@ int server_sock(unsigned short port){
 /*
  * Allocates memory for a new struct client
  * at end of linked list with given fd
- * Returns
+ * Returns 
  * -- pointer to the newly created element if success
  * -- NULL pointer otherwise
  */
@@ -156,12 +156,11 @@ void linkedlist_print(struct client *head){
  * -- hash
  * -- size
  * Returns
- * -- fd upon success, i.e. if
+ * -- fd if
  * ---- file transfer socket finish transfer file
  * ---- main socket finish traversing filepath
  * -- 0 to continue reading req (default behaviour)
- * -- -1 upon certain sys call failures that make it impossible to continue to
- *      the next state
+ * -- -1 if sys call fails
  */
 int read_req(struct client *cli){
     int num_read;
@@ -176,7 +175,7 @@ int read_req(struct client *cli){
         if (num_read == -1){
             perror("server:read");
             return -1;
-        } else if (num_read == 0){    // Happens when client closes
+        } else if (num_read == 0){    // close fd if client conenction closed
             return fd;
         }
         req->type = ntohl(req->type);
@@ -186,8 +185,8 @@ int read_req(struct client *cli){
         if (num_read == -1){
             perror("server:read");
             return -1;
-        } else if(num_read == 0){ // Client closed before fully sending all data
-            return -1;
+        } else if(num_read == 0){
+            return -1; // Could be close
         }
         cli->current_state = AWAITING_PERM;
     } else if(state == AWAITING_PERM){      // 3
@@ -232,38 +231,34 @@ int read_req(struct client *cli){
          */
         if(req->type == TRANSFILE){
             if(S_ISDIR(req->mode)){
-                // Last state for this case : make_dir returns -1 on fail, fd on success
                 return make_dir(cli);
             }
+            cli->current_state = AWAITING_DATA;
             if(req->size == 0){
                 int made, response, num_wrote;
 
                 made = make_file(cli);
-                response = htonl(made);
-
-                num_wrote = write(fd, &response, sizeof(int));
+                response = htonl(OK);
+                
+                num_wrote = write(fd, &response, sizeof(int));      
                 if(num_wrote == -1){
                     perror("server:write");
                     return -1;
                 }
-                return fd;
+                return 0;
             }
-            // Non empty file
-            cli->current_state = AWAITING_DATA;
-            return 0;
         } else{
 
             int compared, response;
             compared = compare_file(cli);
             response = htonl(compared);
 
-            if (write(fd, &response, sizeof(int)) == -1){
-              perror("write");
-              return -1;
-            }
+            write(fd, &response, sizeof(int));
             cli->current_state = AWAITING_TYPE;
 
-            return cli->fd;
+            if(compared == ERROR){
+                return -1;
+            }
 
         }
     } else if(state == AWAITING_DATA){          // 5
@@ -282,7 +277,7 @@ int read_req(struct client *cli){
             else
                 return write_file(cli);
         } else if(S_ISDIR(req->mode)) {
-            return -1; // Shouldn't happen
+            return -1;
         }
 
     }
@@ -301,7 +296,7 @@ int read_req(struct client *cli){
  * ERROR
  * -- file types are incompatible (i.e. file vs. directory)
  * Return
- * -- ERROR on sys call error, or upon mismatch
+ * -- ERROR on sys call error 
  * -- SENDFILE if file / dir does not match request
  * -- OK if file / dir match request
  */
@@ -319,12 +314,12 @@ int compare_file(struct client *cli){
         if (errno != ENOENT){
             perror("lstat");
             return ERROR;
-        } else {
+        } else {                    
             return SENDFILE;
         }
-    } else {
+    } else {                        
         /* Two different ways to mismatch
-         * -- file on client and directory on server
+         * -- file on client and directory on server 
          * -- file on server and directory on client
          */
         if (req.type == REGFILE && S_ISDIR(server_file_stat.st_mode)){
@@ -334,22 +329,22 @@ int compare_file(struct client *cli){
         else if (req.type == REGDIR && S_ISREG(server_file_stat.st_mode)){
             fprintf(stderr, "File Missmatch\n");
             return ERROR;
-        }
+        } 
         /*
-         * Otherwise if file type match, then
-         * -- both regular files
-         * ---- compare hash
-         * ------ different: SENDFILE
+         * Otherwise if file type match, then 
+         * -- both regular files 
+         * ---- compare hash 
+         * ------ different: SENDFILE 
          * ------ same: OK
          * -- both directories
          * ---- update permission and return OK
          * -- permission is updated regardless of response
          */
-        else if (req.type == REGFILE){
+        else if (req.type == REGFILE){ 
             FILE *server_file = fopen(req.path, "r");
-            if (server_file == NULL){
+            if (server_file == NULL){ 
                 perror("fopen");
-                return ERROR;
+                return ERROR;       
             }
 
             int compare = 0;
@@ -359,19 +354,14 @@ int compare_file(struct client *cli){
                 hash(file_hash, server_file);
                 compare = check_hash(req.hash, file_hash);
 
-                if (fclose(server_file)){
-                  perror("fclose");
-                  return ERROR;
-                }
-
                 if(compare){
                     return SENDFILE;
                 }
             }
-        }
+        } 
 
         /*
-         * Update file permission only if file type
+         * Update file permission only if file type 
          * are the same on client & server
          */
         if(chmod(req.path, req.mode) == -1){
@@ -397,7 +387,6 @@ int make_dir(struct client *cli){
 
     int perm = req->mode & (S_IRWXU | S_IRWXG | S_IRWXO);
 
-    //
     if(mkdir(req->path, perm) == -1) {
         perror("mkdir");
         return -1;
@@ -420,9 +409,9 @@ int make_dir(struct client *cli){
  * -- path
  * -- permission
  * Return
- * -- ERROR on error (that the client should know about)
- * -- OK if the file was made
- * --
+ * -- -1 on error
+ * -- 0 if file copy not finished
+ * -- fd if file copy finished
  * (i.e. file transfer over multiple select calls)
  */
 int make_file(struct client *cli){
@@ -431,26 +420,17 @@ int make_file(struct client *cli){
 
     int perm = req->mode & (S_IRWXU | S_IRWXG | S_IRWXO);
 
-    // Open file for write, create file if non existing
+    // Open file for write, create file if not exist
+    //FILE *dest_f;
     if((cli->file = fopen(req->path, "w+")) == NULL) {
         perror("server:fopen");
-        return ERROR;
+        return -1;
     }
-    // Set permission
+    // set permission
     if(chmod(req->path, perm) == -1){
         fprintf(stderr, "chmod: cannot set permission for [%s]\n", req->path);
-        if (fclose(cli->file) == -1)
-          perror("fclose");
-        return ERROR;
+        return -1;
     }
-    // Note that this case is explicitly called upon in the function read_rew
-    if (req->size == 0){
-      if (fclose(cli->file) == -1){
-        perror("fclose");
-      }
-      return OK;
-    }
-
     return 0;
 }
 
@@ -462,9 +442,9 @@ int make_file(struct client *cli){
  * Postcondition: input file stream is closed only when
  *      client has finished sending the file over
  * Return
- * -- -1 on irrecoverable rror
+ * -- -1 on error
  * -- 0 if file copy not finished
- * -- fd if file copy finished and message sent to client successfully
+ * -- fd if file copy finished
  * (i.e. file transfer over multiple select calls)
  */
 int write_file(struct client *cli){
@@ -480,7 +460,6 @@ int write_file(struct client *cli){
 
     if(num_read == -1) {
         perror("server:read");
-        fclose(cli->file);
         return -1;
     } else if(num_read != BUFSIZE){
         nbytes = num_read;
@@ -491,7 +470,6 @@ int write_file(struct client *cli){
     if(num_wrote != nbytes){
         if(ferror(cli->file)){
             fprintf(stderr, "server:fwrite error for [%s]\n", req->path);
-            fclose(cli->file);
             return -1;
         }
     }
@@ -503,12 +481,13 @@ int write_file(struct client *cli){
 
         if(fclose(cli->file) != 0){
             perror("server:fclose");
+            return -1;
         }
 
         int response;
         response = htonl(OK);
 
-        num_wrote = write(fd, &response, sizeof(int));
+        num_wrote = write(fd, &response, sizeof(int));      
         if(num_wrote == -1){
             perror("server:write");
             return -1;
