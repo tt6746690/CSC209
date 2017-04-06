@@ -5,7 +5,7 @@
 
 /* Create a new socket that connects to host
  * Waiting for a successful connection
- * Returns
+ * Returns 
  * -- sock_fd for success
  * -- -1 for error
  */
@@ -70,7 +70,7 @@ int make_req(const char *client_path, const char *server_path, struct request *r
     }
 
     if (fclose(f) != 0){
-        perror("fclose");
+        perror("fclose"); 
         return -1;
     }
 
@@ -85,14 +85,14 @@ int make_req(const char *client_path, const char *server_path, struct request *r
  * -- mode
  * -- hash
  * -- size
- * Return 0 if success otherwise -1
+ * Return 0 if success otherwise -1 
  */
 int send_req(int sock_fd, struct request *req){
 
     int t = htonl(req->type);
     if(write(sock_fd, &t, sizeof(int)) == -1) {
         perror("client:write");
-        return -1;
+        return -1; 
     }
 
     if(write(sock_fd, req->path, MAXPATH) == -1) {
@@ -131,19 +131,21 @@ int send_req(int sock_fd, struct request *req){
  * Return 0 if success otherwise -1
  */
 int send_data(int fd, const char *client_path, struct request *req){
-	  FILE *f;
+	printf("Here I'm about to open a file\n");
+    FILE *f;
     if((f = fopen(client_path, "r")) == NULL){
         perror("client:open");
         return -1;
     }
-	  int num_read;
+	printf("I opened an empty file\n");
+    int num_read;
     char buffer[BUFSIZE];
 
     while((num_read = fread(buffer, 1, BUFSIZE, f)) > 0){
         printf("num_read = %d", num_read);
-
+		   
         if(ferror(f) != 0){
-            fprintf(stderr, "fread error: %s", req->path);
+            fprintf(stderr, "fread error: %s", req->path);          
             if(fclose(f) != 0){
                 perror("client:fclose");
             }
@@ -159,6 +161,8 @@ int send_data(int fd, const char *client_path, struct request *req){
         }
     }
 
+    printf("after fread ");
+
     if(fclose(f) != 0){
         perror("client:fclose");
         return -1;
@@ -167,9 +171,6 @@ int send_data(int fd, const char *client_path, struct request *req){
 
 
 }
-
- // This process' fork count
-int CHILD_COUNT = 0;
 
 /*
  * Traverses filepath rooted at source (locally) with sock_fd
@@ -188,6 +189,8 @@ int CHILD_COUNT = 0;
  * -- -1 for any error
  * -- 0 for success
  */
+int CHILD_COUNT = 0;
+
 int traverse(const char *source, const char *server_dest, int sock_fd, char *host, unsigned short port){
 
     // make & send request for source
@@ -202,10 +205,11 @@ int traverse(const char *source, const char *server_dest, int sock_fd, char *hos
     // wait for response from server
     int res;
     int num_read = read(sock_fd, &res, sizeof(int));
-    if (num_read != sizeof(int)){
+    if (num_read != sizeof(int)){ 
         return -1;
     }
     res = ntohl(res);
+
 
     // handles server response
     if (res == SENDFILE){
@@ -214,8 +218,9 @@ int traverse(const char *source, const char *server_dest, int sock_fd, char *hos
         int result = fork();
         if (result == 0){                // Child
 
+            printf("in child now\n");
             // Create a new socket for child process
-            int child_sock_fd = client_sock(host, port);
+            int child_sock_fd = client_sock(host, port);        
             if (child_sock_fd == -1){
                 exit(1);
             }
@@ -224,14 +229,12 @@ int traverse(const char *source, const char *server_dest, int sock_fd, char *hos
             int file_type = client_req.type;
             client_req.type = TRANSFILE;
             if (send_req(child_sock_fd, &client_req) == -1){
-                // This will cause server to read 0 bytes upon reading.
-                // The server knows that this means close immediately.
-                close(child_sock_fd);
+                close(child_sock_fd);                
                 exit(1);
             }
 
             /* Copy file / dir has two scenario
-             * based on the type of file / dir
+             * based on the type of file / dir 
              * Precondition
              * -- file / dir is non empty
              * -- REGFILE
@@ -242,7 +245,7 @@ int traverse(const char *source, const char *server_dest, int sock_fd, char *hos
              * ---- server creates dir based on req alone
              */
             if(file_type == REGFILE && client_req.size != 0){
-                int sent = send_data(child_sock_fd, source, &client_req);
+                int sent = send_data(child_sock_fd, source, &client_req); 
                 if(sent == -1){
                     close(child_sock_fd);
                     exit(1);
@@ -263,20 +266,28 @@ int traverse(const char *source, const char *server_dest, int sock_fd, char *hos
                 close(child_sock_fd);
                 exit(1);
             }
-            res = ntohl(res);
+            res = ntohl(res);     
 
             close(child_sock_fd);
+
+            /* printf("%d \t%d \t%d \t%d \t%s\n",          TODO: debugging purposes */
+            /*         getpid(), child_sock_fd, */
+            /*         client_req.type, res, client_req.path); */
+            /*  */
+            /* printf("\t\t\t\t\t\tc:%d \t%d \t%d \t%s \t", */
+            /*         getpid(), client_req.size, */
+            /*         client_req.mode, client_req.path); */
+            /* show_hash(client_req.hash); */
 
             if(res == OK){
                 exit(0);
             } else if (res == ERROR){
                 fprintf(stderr, "client: file [%s] received "
                         "ERROR from server\n", source);
-            }
+            } 
             exit(1);
 
         } else if (result < 0){ //parent
-            CHILD_COUNT--;
             perror("fork");
             return -1;
         }
@@ -319,13 +330,12 @@ int traverse(const char *source, const char *server_dest, int sock_fd, char *hos
                 strncpy(server_path, server_dest, sizeof(server_path) - strlen(server_dest) - 1);
                 strncat(server_path, "/", sizeof(server_path) - strlen("/") - 1);
                 strncat(server_path, dp->d_name, sizeof(server_path) - strlen(dp->d_name) - 1);
-
+                
                 int traversed = traverse(src_path, server_path, sock_fd, host, port);
-                // If any recursive call fails, we stop.
                 if(traversed == -1){
                     return -1;
                 }
-
+                 
             }
         }
     }
@@ -335,7 +345,7 @@ int traverse(const char *source, const char *server_dest, int sock_fd, char *hos
 
 /*
  * The main client waits for count number of
- * child processes to terminate
+ * child processes to terminate 
  * Return 0 if success -1 otherwise
  */
 int client_wait(){
