@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="initial-scale=1.0, width=device-width">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+
+  <meta name="author" content="Karen Reid">
+  <meta name="description" content="Software Tools and Systems Programming">
+
+  <title>CSC209 A4 Sockets and Select - CSC209</title>
+
+  <meta name="theme-color" content="#9c27b0">
+
+  <link rel="stylesheet" href="/~csc209h/winter/static/css/main.css">
+</head>
+
+
+  <body>
+    <a href="#content" tabindex="0" class="accessibility-aid">Skip to content</a>
+
+<header class="header">
+  <a class="header__logo" href="/~csc209h/winter" role="logo">
+    <div class="header__logo__title">CSC209</div>
+    <div class="header__logo__subtitle">Software Tools and Systems Programming</div>
+  </a>
+
+  <div class="header__nav">
+    <a id="js-mobile-menu-trigger" class="header__nav__icon" href="#">
+      <span class="header__nav__icon__text">Menu</span>
+
+      <div class="header__nav__icon__lines" aria-hidden="true">
+        <div class="header__nav__icon__lines__line"></div>
+        <div class="header__nav__icon__lines__line"></div>
+        <div class="header__nav__icon__lines__line"></div>
+      </div>
+    </a>
+
+    <nav id="js-mobile-menu" class="header__nav__menu">
+      
+        
+        
+        
+        
+        <a class="header__nav__menu__item " href=/~csc209h/winter/announcements>Announcements</a>
+        
+      
+        
+        
+        
+        
+        <a class="header__nav__menu__item " href=/~csc209h/winter/calendar>Calendar</a>
+        
+      
+        
+        
+        
+        
+        <a class="header__nav__menu__item " href=/~csc209h/winter/syllabus>Syllabus</a>
+        
+      
+        
+        
+        
+        
+        <a class="header__nav__menu__item " href=/~csc209h/winter/lectures>Lectures</a>
+        
+      
+        
+        
+        
+        
+        <a class="header__nav__menu__item header__nav__menu__item--current" href=/~csc209h/winter/assignments>Assignments</a>
+        
+      
+        
+        
+        
+        
+        <a class="header__nav__menu__item " href=/~csc209h/winter/grades>Grades</a>
+        
+      
+        
+        
+        
+        
+          <a class="header__nav__menu__item " href=https://markus.teach.cs.toronto.edu/csc209-2017-01/>MarkUs</a>
+        
+      
+        
+        
+        
+        
+          <a class="header__nav__menu__item " href=https://pcrs.teach.cs.toronto.edu/209/>PCRS-C</a>
+        
+      
+        
+        
+        
+        
+        <a class="header__nav__menu__item " href=/~csc209h/winter/feedback>Anonymous Feedback</a>
+        
+      
+        
+        
+        
+        
+          <a class="header__nav__menu__item " href=https://piazza.com/utoronto.ca/winter2017/csc209/home>Piazza</a>
+        
+      
+    </nav>
+  </div>
+</header>
+
+
+    <main id="content" class="page-content">
+      <div class="post">
+        <header class="post__header">
+          <h1>CSC209 A4 Sockets and Select</h1>
+          <p class="post__header__meta">
+            
+            
+          </p>
+        </header>
+
+        <article class="post__content">
+          <h2 id="introduction">Introduction</h2>
+
+<p>This is the final assignment of the term, so it’s time to wrap things up by having your file synchronization program work across different machines. In this assignment, you’ll be writing two programs that collaborate to copy files from the client to the server.</p>
+
+<p>As in assignment 3, you may be able to copy snippets of code from previous assignments, so you may want to keep copies of assignment 2 and 3 open. You’ll also find the code from the <a href="/~csc209h/winter/lectures.html">lectures</a>, the <a href="/~csc209h/winter/assignments/ex10.html">week 10 exercise</a> (client and server), and the <a href="/~csc209h/winter/assignments/ex11.html">week 11 exercise</a> (select)  helpful.</p>
+
+<p><strong>NOTE: You must log into MarkUs well before the deadline to “create your group” which either means declaring that you will work alone, or inviting or accepting an invitation from another student.</strong></p>
+
+<h2 id="requirements">Requirements</h2>
+
+<p>You will write a Makefile and two programs, <code class="highlighter-rouge">rcopy_client</code> and <code class="highlighter-rouge">rcopy_server</code>. The main function for each program should be written in a file called <code class="highlighter-rouge">rcopy_client.c</code> and <code class="highlighter-rouge">rcopy_server.c</code>.  You are welcome to include additional source and header files.  You are welcome to add to and modify the provided files, but should not change the provided structs, size constants or the communication protocol. The communication protocol between the client and the server is fully defined, so we should be able to connect our client to your server and your client to our server.</p>
+
+<p>The two programs should work together to copy a file tree from the client machine to the server machine. Here is the process that the two programs will use:</p>
+
+<ul>
+  <li>
+    <p><code class="highlighter-rouge">rcopy_client</code> initiates a connection with <code class="highlighter-rouge">rcopy_server</code>. The client takes the source file or directory path, and the hostname as an argument.  Any path can be passed into the client, but the client will copy the <code class="highlighter-rouge">basename</code> (last element on the path) to the server. (NOTE: The directory tree copied to the server is rooted at the <code class="highlighter-rouge">basename</code> of the argument passed into the client.  It is this root that will be copied into dest (see below)).</p>
+  </li>
+  <li>The server takes a <code class="highlighter-rouge">PREFIX</code> path as argument. This directory path identifies the directory into which files and directories from the client will be copied.  The copied files and directories will be copied into the directory <code class="highlighter-rouge">PREFIX/sandbox/dest</code>, where <code class="highlighter-rouge">sandbox</code> and <code class="highlighter-rouge">dest</code> are fixed names.  We are doing this to add a little extra security. (See example below.)</li>
+  <li><code class="highlighter-rouge">rcopy_client</code> identifies itself as a <em>main client</em> by sending the a request with  <code class="highlighter-rouge">REGFILE or REGDIR</code> as the type (see <code class="highlighter-rouge">ftree.h</code>). As in the labs, the port to use should be defined using a command line argument set in the <code class="highlighter-rouge">Makefile</code>.</li>
+  <li><code class="highlighter-rouge">rcopy_client</code>, in a single process, walks the file tree (the directory structure). For each file or directory …
+    <ol>
+      <li><code class="highlighter-rouge">rcopy_client</code> sends the server a struct: a path, mode (not just permissions!), hash, and file size. Then, it waits for a response. We have to send the file path relative to the basename directory we started with since we can’t make assumptions about the current working directory of the server. We have to send the mode since the server will need to know the type of the file.</li>
+      <li><code class="highlighter-rouge">rcopy_server</code> responds with the integer <code class="highlighter-rouge">SENDFILE</code> (see <code class="highlighter-rouge">ftree.h</code>) if its copy of the file differs (so the client should send a copy) and <code class="highlighter-rouge">OK</code> if the files are the same. At this point, the server may detect that the file types are incompatible, in which case it should send a <code class="highlighter-rouge">ERROR</code> and emit an error on <code class="highlighter-rouge">STDERR</code>. Regardless of whether there is a match or mismatch, the server should update the file’s permissions if it exists.
+        <ul>
+          <li>If the files are the same, the client can continue to the next file.</li>
+          <li>If the files are different, the server should <em>not</em> update permissions. The client <code class="highlighter-rouge">fork</code>s a new process. The new client process should initiate a connection with <code class="highlighter-rouge">rcopy_server</code> and identify itself as a <em>file sender client</em> by sending a request with the type <code class="highlighter-rouge">TRANSFILE</code>.</li>
+          <li>The file sender client should send the same struct as before (file path, mode, hash, and file size). Then, without expecting a response, it should transmit the data from the file. After transmitting this data, the file sender client should wait for the message <code class="highlighter-rouge">OK</code> and then close the socket and exit. If it transmits the file successfully, it should exit with status 0; otherwise, if there is an error (either on the client side or if the message <code class="highlighter-rouge">ERROR</code> is received), it should print an appropriate message that includes the name of the file that triggered the error and then exit with status 1. No message should be printed if the file transfer is successful.</li>
+          <li>The server should update the file as data is received from the file sender client and then change the permissions after the file transmission is complete. If those operations succeed, it should send the success message. If it detects some error while writing the data (early termination of the connection or a mismatch in the hash, for example), the server should transmit the error message and then print an appropriate error that includes the name of the file that triggered the error. However, the server <em>should not terminate</em>, as it needs to be available for other clients. No message should be printed if the file transfer is successful.</li>
+        </ul>
+      </li>
+      <li>After forking a child to handle transmitting the file (if necessary), the main client can continue to the next file. It does not need to open a new connection for the next file; the server is expecting the main client to send a sequence of structs. The server should be able to handle multiple simultaneous connections (main clients and file sender clients).</li>
+    </ol>
+  </li>
+  <li>After all files are copied, the main client should close the connection with the server and then wait for children it <code class="highlighter-rouge">fork</code>ed. If all of the file transfers completed successfully and the main client did not encounter an error, it should return a 0. Otherwise, it should return 1.</li>
+  <li>The server should not terminate after the main client exits. It should continue listening for new clients to connect.</li>
+</ul>
+
+<h3 id="example">Example</h3>
+
+<p>Given the directory structure where <code class="highlighter-rouge">adir</code> is a directory containing <code class="highlighter-rouge">bdir</code> and <code class="highlighter-rouge">file1</code>, and <code class="highlighter-rouge">bdir</code> is a directory containing <code class="highlighter-rouge">file2</code>.</p>
+
+<div class="highlighter-rouge"><pre class="highlight"><code>adir:
+    bdir:
+        file2
+    file1
+</code></pre>
+</div>
+
+<p>If the server is run as <code class="highlighter-rouge">rcopy_server .</code> where dest is a relative or absolute path on the server, then when we run <code class="highlighter-rouge">rcopy_client adir localhost</code>, the contents of <code class="highlighter-rouge">dest</code> would look like the following.  <code class="highlighter-rouge">adir</code> becomes a subdirectory of <code class="highlighter-rouge">dest</code>.</p>
+
+<div class="highlighter-rouge"><pre class="highlight"><code>sandbox:
+    dest: 
+        adir:
+            bdir:
+                file2
+            file1
+</code></pre>
+</div>
+
+<p>You can assume that if multiple clients attempt to update <code class="highlighter-rouge">adir</code> they will be assumed to know that they are updating the same directory structure.  You do not need to worry about deleting files or directories on the server or concurrency problems that might arise from having two clients updating the same directory simultaneously.</p>
+
+<p><em>IMPORTANT:</em>  The starter code changes the permissions of <code class="highlighter-rouge">sandbox</code> so that it is not writable or executable.  This is to prevent a malicious user from using your server to modify files above or outside of sandbox area that we want to use for this application.  (I am <em>not</em> promising that this prevents all security breaches, so you should still kill your server whenever you are not testing it.)</p>
+
+<p>This is a bit of a hassle because it means that you have to change the permissions back to executable to remove the files and directory.  One thing you could do to reduce the annoyance is write a signal handler that will change the permissions to executable whenever a SIGINT arrives. This is not a required part of the assignment.</p>
+
+<h3 id="security-concerns">Security Concerns</h3>
+
+<p>The server does not need to do any checking to make sure that the file sender clients are sending files previously checked by the main client. The clients also do no authentication, so <strong>anyone could connect to your server and overwrite your files.</strong></p>
+
+<p>I hope that sounds bad. <strong>This is a huge vulnerability.</strong> So, (1) change the port in your <code class="highlighter-rouge">Makefile</code> to a “secret” number. This is just “security through obscurity”, but it’s a start. (2) Only run your server when you are actively testing and don’t forget to kill it whenever you aren’t using it. (3) We have added a bit of extra code in <code class="highlighter-rouge">rcopy_server</code> to provide a bit of extra protection.</p>
+
+<h3 id="starter-code-and-file-structure">Starter Code and File Structure</h3>
+
+<p>You will first need to log into MarkUs and navigate to a4 to declare whether you are working alone or in a pair.  This causes the directory to be created in your repo, or new repo for your pair to be created.  IMPORTANT: MarkUs will not know about your a4 directory if you create it yourself, and we won’t be able to find your assignment work, so you need to log into MarkUs.</p>
+
+<p>You will need to copy the following files into your repository.</p>
+
+<ul>
+  <li><a href="/~csc209h/winter/assignments/a4/ftree.h">ftree.h</a></li>
+  <li><a href="/~csc209h/winter/assignments/a4/hash.h">hash.h</a></li>
+  <li><a href="/~csc209h/winter/assignments/a4/hash_functions.c">hash_functions.c</a></li>
+  <li><a href="/~csc209h/winter/assignments/a4/rcopy_client.c">rcopy_client.c</a></li>
+  <li><a href="/~csc209h/winter/assignments/a4/rcopy_server.c">rcopy_server.c</a></li>
+</ul>
+
+<p>We are providing header files that define the client and server functions to write (<code class="highlighter-rouge">ftree.h</code>) and the hash function to provide (<code class="highlighter-rouge">hash.h</code>) as well as the main files for the client (<code class="highlighter-rouge">rcopy_client.c</code>) and server (<code class="highlighter-rouge">rcopy_server.c</code>). All of the code you write should go into <code class="highlighter-rouge">ftree.c</code>.</p>
+
+<p>Your first task is to write a <code class="highlighter-rouge">Makefile</code>. Your <code class="highlighter-rouge">Makefile</code> should have at least four targets: <em>all</em>, the default target that should build both <code class="highlighter-rouge">rcopy_client</code> and <code class="highlighter-rouge">rcopy_server</code>; <em>rcopy_client</em>; <em>rcopy_server</em>, and <em>clean</em>, which should remove the executables and any intermediate (<code class="highlighter-rouge">.o</code>) files. The <code class="highlighter-rouge">Makefile</code> should also define at least two variables: <em>PORT</em>, for the port to be used by the client and server, and <em>FLAGS</em>, which should include at least <code class="highlighter-rouge">-Wall</code>, <code class="highlighter-rouge">-std=gnu99</code>, and <code class="highlighter-rouge">-DPORT</code>.</p>
+
+<p>I recommend implementing the client and server in parallel, but in <strong>very small</strong> steps. For example, start by implementing a server that simply accepts a connection from the client and prints the data that is transmitted to it. Write a client that connects to the server and sends the path it was given. Test. Then, update the client so that it actually pays attention to its arguments and sends the data for a single real file (but don’t recursively trace directories or fork clients to actually send data yet). Test. (For example, print out out the data the client sent in the server). Then, update the sever so it actually tests that specified file and sends a response. Test. Then, update the client and server so that the client can trace through the directory tree and send data about more than one file. Test. Then …</p>
+
+<h3 id="transmitting-structs">Transmitting Structs</h3>
+
+<p>It doesn’t quite work to just send the whole struct on the socket (as we did with a pipe).  We need to send each field in succession. As long as the fields are sent in the order expected by the server (first type, then path, then mode, then hash, then file size), the struct can be filled in easily. Since all of the fields in the struct have a fixed size, they are easy to transfer: the client (and server) can simply write (and read) the number of bytes expected for each field. For example, the hash is stored in an array of <code class="highlighter-rouge">BLOCKSIZE</code> chars, so <code class="highlighter-rouge">BLOCKSIZE</code> bytes should be transmitted.</p>
+
+<p>There are three issues to be careful of. First, make sure to send all of the bytes expected. For example, even if the path is only 16 bytes long, the full <code class="highlighter-rouge">MAXPATH</code> bytes should be transmitted. Second, be sure to translate any numeric types to and from network order (using <code class="highlighter-rouge">htonl</code> and <code class="highlighter-rouge">ntohl</code>, for example), in case the systems have different endianness. Third, remember that after a select call, it is only safe to call <code class="highlighter-rouge">read</code> once. So you can’t just write four <code class="highlighter-rouge">read</code> calls in a row to read the fields of the struct, you will need to keep track of the state of what you have read so far and allow select to be called in between each read call.</p>
+
+<p>For example, the initial state is <code class="highlighter-rouge">AWAITING_TYPE</code> so the first thing the server expects to read from a client is the request type.  After it has read the type, the state of this client should change to  <code class="highlighter-rouge">AWAITING_PATH</code> because the next thing the server expects to read from the client is the path.</p>
+
+<h3 id="links-and-hidden-files">Links and Hidden Files</h3>
+
+<p>As in previous assignments, your programs do not need to handle links or files that start with “.”. If the client encounters a symbolic link or a file starting with “.”, it should skip it.</p>
+
+<p>As you saw in the previous assignment, identifying that two files are hard links of the same underlying data is difficult, so you are not expected to do so. Two files that are hard links of the same underlying data on the client will result in two separate files on the server.</p>
+
+<h2 id="submission-and-marking">Submission and Marking</h2>
+
+<p>Your submission should be committed (and pushed) to your git repository by the due date. As before, we are using automated grading tools to provide functional feedback, so it’s important that your submission be in the correct location in your repository (under <code class="highlighter-rouge">a4/</code>), have the correct filenames (all of your code – client and server – should be in <code class="highlighter-rouge">ftree.c</code> except for the hash function, which should be in <code class="highlighter-rouge">hash_functions.c</code>), not include the safety mechanism described earlier, be fully submitted (remember to add the <code class="highlighter-rouge">Makefile</code> and any other new files, commit, <i>and</i> push), compile cleanly, and produce output when requested (and only when requested).</p>
+
+<p>Your program must compile on a CS lab machine, so please test it there before submission. We will be using <code class="highlighter-rouge">gcc</code>to compile program with the flags <code class="highlighter-rouge">-Wall</code> and <code class="highlighter-rouge">-std=gnu99</code>. Your program should not produce any error or warning messages when compiled. As in assignments 1-3, programs that do not compile will receive a 0. Programs that produce warning messages will be penalized.</p>
+
+        </article>
+      </div>
+    </main>
+
+    <footer class="footer">
+  <div class="footer__top" aria-hidden="true">
+    <button id="js-scroll-top">
+      <svg xmlns="http://www.w3.org/2000/svg" width="10" height="6">
+        <path d="M0 5l5-5"/>
+        <path d="M5 0l5 5"/>
+      </svg>
+      Back to top
+    </button>
+  </div>
+
+  <p class="footer__info">&copy; 2017 Karen Reid | Powered by <a href="https://jekyllrb.com/">Jekyll</a> on <a href="https://pages.github.com/">GitHub Pages</a></p>
+</footer>
+
+<script src="https://ajax.googleapis.com/ajax/libs/webfont/1.6.26/webfont.js"></script>
+<script src="/~csc209h/winter/static/js/script.js"></script>
+
+  </body>
+</html>
